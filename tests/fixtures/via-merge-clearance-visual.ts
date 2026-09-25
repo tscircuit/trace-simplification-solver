@@ -39,85 +39,101 @@ export const createClearanceFrames = () => {
     if (!solver.solved) throw new Error("Visual reproduction did not solve")
     return solver.getMergedViaHdRoutes()!
   }
-  return [
-    {
-      title: "1. INPUT",
-      detail: "Two overlapping same-net vias; foreign wire is clear.",
-      routes: input,
-    },
-    {
-      title: "2. LEGACY MERGE",
-      detail: "Moving the diagonal via left bends its wire too close.",
-      routes: run(false),
-    },
-    {
-      title: "3. CLEARANCE-PRESERVING MERGE",
-      detail: "Reuse the right via; keep the diagonal wire unchanged.",
-      routes: run(true),
-    },
-  ]
+  return [{ routes: input }, { routes: run(false) }, { routes: run(true) }]
 }
 
-type Frame = ReturnType<typeof createClearanceFrames>[number]
-
-export const renderClearanceFrame = (frame: Frame): string => {
-  const gap = copperGap(frame.routes)
-  const color = gap >= 0.1 ? "#167348" : "#bd302d"
-  const draw = (
-    bounds: { x: number; y: number; width: number; height: number },
-    view: { x: number; y: number; width: number; height: number },
-    id: string,
-  ) => {
-    const scale = Math.min(
-      bounds.width / view.width,
-      bounds.height / view.height,
-    )
-    const x = (v: number) => bounds.x + (v - view.x) * scale
-    const y = (v: number) => bounds.y + bounds.height - (v - view.y) * scale
+export const renderClearanceComparison = (
+  frames: ReturnType<typeof createClearanceFrames>,
+): string => {
+  const headings = [
+    "INPUT: TWO NEARBY VIAS",
+    "BUG: MERGE AT A",
+    "FIX: MERGE AT B",
+  ]
+  const explanations = [
+    [
+      "A and B belong to the same net.",
+      "The diagonal wire has enough clearance.",
+    ],
+    [
+      "Moving B to A pulls the diagonal wire left.",
+      "It enters the other net's required clearance.",
+    ],
+    ["Move A to B instead.", "The diagonal wire stays safely in place."],
+  ]
+  const panels = frames.map((frame, index) => {
+    const offset = 32 + index * 470
+    const x = (v: number) => offset + 100 + v * 270
+    const y = (v: number) => 574 - v * 270
+    const gap = copperGap(frame.routes)
     const parts = [
-      `<defs><clipPath id="${id}"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}"/></clipPath></defs><g clip-path="url(#${id})">`,
+      `<text x="${offset}" y="166" font-size="21" font-weight="700">${headings[index]}</text>`,
+      ...explanations[index]!.map(
+        (line, i) =>
+          `<text x="${offset}" y="${197 + i * 26}" font-size="18">${line}</text>`,
+      ),
+      `<defs><clipPath id="plot-${index}"><rect x="${offset}" y="246" width="438" height="390"/></clipPath></defs><g clip-path="url(#plot-${index})">`,
+      `<rect x="${offset}" y="246" width="438" height="390" fill="#f4f7f5"/>`,
     ]
     for (const route of frame.routes) {
-      const stroke = route.connectionName === "neighbor" ? "#d45c27" : "#168463"
+      const foreign = route.connectionName === "neighbor"
       for (let i = 1; i < route.route.length; i++) {
         const a = route.route[i - 1]!,
           b = route.route[i]!
         if (a.z !== 0 || b.z !== 0) continue
-        if (route.connectionName === "neighbor")
+        const line = `x1="${x(a.x)}" y1="${y(a.y)}" x2="${x(b.x)}" y2="${y(b.y)}" stroke-linecap="round"`
+        if (foreign)
           parts.push(
-            `<line x1="${x(a.x)}" y1="${y(a.y)}" x2="${x(b.x)}" y2="${y(b.y)}" stroke="#fbe3d4" stroke-width="${(route.traceThickness + 0.2) * scale}" stroke-linecap="round"/>`,
+            `<line ${line} stroke="#f8d9c7" stroke-width="${(route.traceThickness + 0.2) * 270}"/>`,
           )
         parts.push(
-          `<line x1="${x(a.x)}" y1="${y(a.y)}" x2="${x(b.x)}" y2="${y(b.y)}" stroke="${stroke}" stroke-width="${route.traceThickness * scale}" stroke-linecap="round"/>`,
+          `<line ${line} stroke="${foreign ? "#c34e18" : "#168463"}" stroke-width="${route.traceThickness * 270}"/>`,
         )
       }
     }
     const sites = new Set<string>()
+    const holes: string[] = []
     for (const route of frame.routes)
       for (const via of route.vias) {
         const key = `${via.x}:${via.y}`
         if (sites.has(key)) continue
         sites.add(key)
         parts.push(
-          `<circle cx="${x(via.x)}" cy="${y(via.y)}" r="${(route.viaDiameter * scale) / 2}" fill="#168463" stroke="#084b38" stroke-width="2"/><circle cx="${x(via.x)}" cy="${y(via.y)}" r="${0.05 * scale}" fill="white"/>`,
+          `<circle cx="${x(via.x)}" cy="${y(via.y)}" r="${route.viaDiameter * 135}" fill="#168463" stroke="#084b38" stroke-width="2"/>`,
+        )
+        holes.push(
+          `<circle cx="${x(via.x)}" cy="${y(via.y)}" r="10" fill="white"/>`,
         )
       }
-    parts.push("</g>")
+    parts.push(...holes, "</g>")
+    const labels =
+      index === 0
+        ? [
+            [-0.1, "A"],
+            [0, "B"],
+          ]
+        : [[index === 1 ? -0.1 : 0, index === 1 ? "A" : "B"]]
+    for (const [vx, label] of labels) {
+      parts.push(
+        `<text x="${x(Number(vx))}" y="632" text-anchor="middle" font-size="18" font-weight="700">${label}</text>`,
+      )
+    }
+    parts.push(
+      `<text x="${offset}" y="675" font-size="23" font-weight="700" fill="${index === 1 ? "#b52a25" : "#167348"}">Gap: ${gap.toFixed(4)} mm ${index === 1 ? "FAIL" : "PASS"}</text>`,
+      `<text x="${offset}" y="705" font-size="18">${index === 1 ? "Below the required 0.1000 mm." : "Above the required 0.1000 mm."}</text>`,
+    )
     return parts.join("\n")
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
-    <rect width="1200" height="700" fill="white"/>
-    <g font-family="Arial, sans-serif" fill="#172c25">
-    <text x="36" y="44" font-size="25" font-weight="700">${frame.title}</text>
-    <text x="36" y="78" font-size="20">${frame.detail}</text>
-    <text x="36" y="126" font-size="18">TOP COPPER / millimeters</text>
-    <text x="650" y="126" font-size="18">CLEARANCE DETAIL / same scale in all frames</text>
-    <rect x="36" y="145" width="555" height="420" fill="#f4f7f5"/>
-    <rect x="650" y="145" width="514" height="420" fill="#f4f7f5"/>
-    ${draw({ x: 46, y: 155, width: 535, height: 400 }, { x: -2.2, y: -0.3, width: 3.5, height: 1.7 }, "overview")}
-    ${draw({ x: 660, y: 155, width: 494, height: 400 }, { x: 0.32, y: 0.46, width: 0.55, height: 0.53 }, "detail")}
-    <text x="36" y="607" font-size="21" fill="${color}" font-weight="700">Copper gap: ${gap.toFixed(4)} mm / required: 0.1000 mm / ${gap >= 0.1 ? "PASS" : "FAIL"}</text>
-    <text x="36" y="643" font-size="18">Green: same net. Orange: foreign net. Pale orange: 0.1 mm clearance envelope.</text>
-    <text x="36" y="675" font-size="16">Both layers follow the via; top layer shown. All frames are actual solver inputs or outputs.</text>
-    </g></svg>`
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="850" viewBox="0 0 1440 850">
+  <rect width="1440" height="850" fill="white"/>
+  <g font-family="Arial, sans-serif" fill="#172c25">
+    <text x="32" y="44" font-size="28" font-weight="700">Merging two vias can pull an attached wire too close to another net.</text>
+    <text x="32" y="80" font-size="20">The old check considers the short move between vias. It misses the long wire that bends when a via moves.</text>
+    <text x="32" y="112" font-size="20">The fix checks the resulting copper before accepting a merge, so it can choose the safe via instead.</text>
+    ${panels.join("\n")}
+    <line x1="32" y1="736" x2="1408" y2="736" stroke="#cbd5cf"/>
+    <text x="32" y="771" font-size="18">Green: same-net wires and vias. Orange: another net. Pale orange: its 0.1 mm clearance zone.</text>
+    <text x="32" y="802" font-size="18">A via connects board layers. Circles are via copper; white centers are holes. Wires continue off the left edge.</text>
+    <text x="32" y="830" font-size="16">Actual solver input and outputs, shown at the same scale. Top layer close-up; bottom-layer wires also follow the vias.</text>
+  </g></svg>`
 }

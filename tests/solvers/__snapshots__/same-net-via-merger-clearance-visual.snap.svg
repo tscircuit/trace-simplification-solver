@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="850" viewBox="0 0 1440 850">
+  <rect width="1440" height="850" fill="white"/>
+  <g font-family="Arial, sans-serif" fill="#172c25">
+    <text x="32" y="44" font-size="28" font-weight="700">Merging two vias can pull an attached wire too close to another net.</text>
+    <text x="32" y="80" font-size="20">The old check considers the short move between vias. It misses the long wire that bends when a via moves.</text>
+    <text x="32" y="112" font-size="20">The fix checks the resulting copper before accepting a merge, so it can choose the safe via instead.</text>
+    <text x="32" y="166" font-size="21" font-weight="700">INPUT: TWO NEARBY VIAS</text>
+<text x="32" y="197" font-size="18">A and B belong to the same net.</text>
+<text x="32" y="223" font-size="18">The diagonal wire has enough clearance.</text>
+<defs><clipPath id="plot-0"><rect x="32" y="246" width="438" height="390"/></clipPath></defs><g clip-path="url(#plot-0)">
+<rect x="32" y="246" width="438" height="390" fill="#f4f7f5"/>
+<line x1="-408" y1="574" x2="105" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="402" y1="304" x2="132" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="267" y1="361.24" x2="294" y2="334.24" stroke-linecap="round" stroke="#f8d9c7" stroke-width="81.00000000000001"/>
+<line x1="267" y1="361.24" x2="294" y2="334.24" stroke-linecap="round" stroke="#c34e18" stroke-width="27"/>
+<circle cx="105" cy="574" r="40.5" fill="#168463" stroke="#084b38" stroke-width="2"/>
+<circle cx="132" cy="574" r="40.5" fill="#168463" stroke="#084b38" stroke-width="2"/>
+<circle cx="105" cy="574" r="10" fill="white"/>
+<circle cx="132" cy="574" r="10" fill="white"/>
+</g>
+<text x="105" y="632" text-anchor="middle" font-size="18" font-weight="700">A</text>
+<text x="132" y="632" text-anchor="middle" font-size="18" font-weight="700">B</text>
+<text x="32" y="675" font-size="23" font-weight="700" fill="#167348">Gap: 0.1036 mm PASS</text>
+<text x="32" y="705" font-size="18">Above the required 0.1000 mm.</text>
+<text x="502" y="166" font-size="21" font-weight="700">BUG: MERGE AT A</text>
+<text x="502" y="197" font-size="18">Moving B to A pulls the diagonal wire left.</text>
+<text x="502" y="223" font-size="18">It enters the other net's required clearance.</text>
+<defs><clipPath id="plot-1"><rect x="502" y="246" width="438" height="390"/></clipPath></defs><g clip-path="url(#plot-1)">
+<rect x="502" y="246" width="438" height="390" fill="#f4f7f5"/>
+<line x1="62" y1="574" x2="575" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="872" y1="304" x2="575" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="737" y1="361.24" x2="764" y2="334.24" stroke-linecap="round" stroke="#f8d9c7" stroke-width="81.00000000000001"/>
+<line x1="737" y1="361.24" x2="764" y2="334.24" stroke-linecap="round" stroke="#c34e18" stroke-width="27"/>
+<circle cx="575" cy="574" r="40.5" fill="#168463" stroke="#084b38" stroke-width="2"/>
+<circle cx="575" cy="574" r="10" fill="white"/>
+</g>
+<text x="575" y="632" text-anchor="middle" font-size="18" font-weight="700">A</text>
+<text x="502" y="675" font-size="23" font-weight="700" fill="#b52a25">Gap: 0.0795 mm FAIL</text>
+<text x="502" y="705" font-size="18">Below the required 0.1000 mm.</text>
+<text x="972" y="166" font-size="21" font-weight="700">FIX: MERGE AT B</text>
+<text x="972" y="197" font-size="18">Move A to B instead.</text>
+<text x="972" y="223" font-size="18">The diagonal wire stays safely in place.</text>
+<defs><clipPath id="plot-2"><rect x="972" y="246" width="438" height="390"/></clipPath></defs><g clip-path="url(#plot-2)">
+<rect x="972" y="246" width="438" height="390" fill="#f4f7f5"/>
+<line x1="532" y1="574" x2="1072" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="1342" y1="304" x2="1072" y2="574" stroke-linecap="round" stroke="#168463" stroke-width="27"/>
+<line x1="1207" y1="361.24" x2="1234" y2="334.24" stroke-linecap="round" stroke="#f8d9c7" stroke-width="81.00000000000001"/>
+<line x1="1207" y1="361.24" x2="1234" y2="334.24" stroke-linecap="round" stroke="#c34e18" stroke-width="27"/>
+<circle cx="1072" cy="574" r="40.5" fill="#168463" stroke="#084b38" stroke-width="2"/>
+<circle cx="1072" cy="574" r="10" fill="white"/>
+</g>
+<text x="1072" y="632" text-anchor="middle" font-size="18" font-weight="700">B</text>
+<text x="972" y="675" font-size="23" font-weight="700" fill="#167348">Gap: 0.1036 mm PASS</text>
+<text x="972" y="705" font-size="18">Above the required 0.1000 mm.</text>
+    <line x1="32" y1="736" x2="1408" y2="736" stroke="#cbd5cf"/>
+    <text x="32" y="771" font-size="18">Green: same-net wires and vias. Orange: another net. Pale orange: its 0.1 mm clearance zone.</text>
+    <text x="32" y="802" font-size="18">A via connects board layers. Circles are via copper; white centers are holes. Wires continue off the left edge.</text>
+    <text x="32" y="830" font-size="16">Actual solver input and outputs, shown at the same scale. Top layer close-up; bottom-layer wires also follow the vias.</text>
+  </g></svg>

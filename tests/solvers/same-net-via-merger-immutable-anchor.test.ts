@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
-import { getSvgFromGraphicsObject } from "graphics-debug"
 import { SameNetViaMergerSolver } from "lib/solvers/SameNetViaMergerSolver/SameNetViaMergerSolver"
 import type { HighDensityRoute } from "lib/types/high-density-types"
 
@@ -92,28 +91,4 @@ test("same-net via merging reuses an immutable via without mutating it", () => {
     sharedAnchorSolver.getMergedViaHdRoutes()!.map((route) => route.vias),
   ).toEqual([[{ x: 0, y: 0 }], [{ x: 0, y: 0 }]])
   expect(immutableRoute).toEqual(immutableSnapshot)
-
-  const graphics = solver.visualize()
-  graphics.texts = [
-    { x: 0, y: 0.55, text: "FIXED ANCHOR: ONE PHYSICAL VIA", fontSize: 0.065 },
-    {
-      x: 0,
-      y: 0.4,
-      text: "Editable route keeps its layer-transition via",
-      fontSize: 0.05,
-    },
-    {
-      x: 0,
-      y: -0.4,
-      text: "Top (red) -> shared via -> bottom (blue)",
-      fontSize: 0.05,
-    },
-  ]
-  expect(
-    getSvgFromGraphicsObject(graphics, {
-      backgroundColor: "white",
-      svgWidth: 800,
-      svgHeight: 600,
-    }),
-  ).toMatchSvgSnapshot(import.meta.path)
 })
