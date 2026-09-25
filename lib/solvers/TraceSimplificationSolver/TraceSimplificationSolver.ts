@@ -103,7 +103,7 @@ export class TraceSimplificationSolver extends BaseSolver {
    *   - terminalLayerIndicesByPcbPortId: Physical copper-layer indices on
    *     which each PCB-port terminal can directly accept a route endpoint
    *     without a via
-   *   - iterations: Number of complete simplification iterations (default: 2)
+   *   - iterations: Positive integer number of complete pipeline passes (default: 2)
    */
   constructor(
     private readonly simplificationConfig: {
@@ -122,6 +122,7 @@ export class TraceSimplificationSolver extends BaseSolver {
       readonly preserveRouteEndpoints?: boolean
       readonly useTraceWidthAwareClearance?: boolean
       readonly enableVertexShortcuts?: boolean
+      readonly iterations?: number
       readonly terminalLayerIndicesByPcbPortId?: ReadonlyMap<
         string,
         ReadonlySet<number>
@@ -129,6 +130,11 @@ export class TraceSimplificationSolver extends BaseSolver {
     },
   ) {
     super()
+    const iterations = simplificationConfig.iterations ?? 2
+    if (!Number.isInteger(iterations) || iterations < 1) {
+      throw new Error("iterations must be a positive integer")
+    }
+    this.MAX_SIMPLIFICATION_PIPELINE_LOOPS = iterations
     this.simplificationConfig = {
       ...simplificationConfig,
       obstacles: createObjectsWithZLayers(
