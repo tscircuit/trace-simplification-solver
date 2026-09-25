@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+    <rect width="1200" height="700" fill="white"/>
+    <g font-family="Arial, sans-serif" fill="#172c25">
+    <text x="36" y="44" font-size="25" font-weight="700">3. CLEARANCE-PRESERVING MERGE</text>
+    <text x="36" y="78" font-size="20">Reuse the right via; keep the diagonal wire unchanged.</text>
+    <text x="36" y="126" font-size="18">TOP COPPER / millimeters</text>
+    <text x="650" y="126" font-size="18">CLEARANCE DETAIL / same scale in all frames</text>
+    <rect x="36" y="145" width="555" height="420" fill="#f4f7f5"/>
+    <rect x="650" y="145" width="514" height="420" fill="#f4f7f5"/>
+    <defs><clipPath id="overview"><rect x="46" y="155" width="535" height="400"/></clipPath></defs><g clip-path="url(#overview)">
+<line x1="76.5714285714286" y1="509.14285714285717" x2="382.28571428571433" y2="509.14285714285717" stroke="#168463" stroke-width="15.285714285714286" stroke-linecap="round"/>
+<line x1="535.1428571428571" y1="356.2857142857143" x2="382.28571428571433" y2="509.14285714285717" stroke="#168463" stroke-width="15.285714285714286" stroke-linecap="round"/>
+<line x1="458.7142857142858" y1="388.69142857142856" x2="474.00000000000006" y2="373.4057142857143" stroke="#fbe3d4" stroke-width="45.85714285714287" stroke-linecap="round"/>
+<line x1="458.7142857142858" y1="388.69142857142856" x2="474.00000000000006" y2="373.4057142857143" stroke="#d45c27" stroke-width="15.285714285714286" stroke-linecap="round"/>
+<circle cx="382.28571428571433" cy="509.14285714285717" r="22.928571428571427" fill="#168463" stroke="#084b38" stroke-width="2"/><circle cx="382.28571428571433" cy="509.14285714285717" r="7.642857142857143" fill="white"/>
+</g>
+    <defs><clipPath id="detail"><rect x="660" y="155" width="494" height="400"/></clipPath></defs><g clip-path="url(#detail)">
+<line x1="-1090.943396226415" y1="902.1698113207547" x2="418.49056603773585" y2="902.1698113207547" stroke="#168463" stroke-width="75.47169811320755" stroke-linecap="round"/>
+<line x1="1173.2075471698113" y1="147.45283018867923" x2="418.49056603773585" y2="902.1698113207547" stroke="#168463" stroke-width="75.47169811320755" stroke-linecap="round"/>
+<line x1="795.8490566037735" y1="307.45283018867923" x2="871.3207547169811" y2="231.9811320754717" stroke="#fbe3d4" stroke-width="226.41509433962267" stroke-linecap="round"/>
+<line x1="795.8490566037735" y1="307.45283018867923" x2="871.3207547169811" y2="231.9811320754717" stroke="#d45c27" stroke-width="75.47169811320755" stroke-linecap="round"/>
+<circle cx="418.49056603773585" cy="902.1698113207547" r="113.20754716981132" fill="#168463" stroke="#084b38" stroke-width="2"/><circle cx="418.49056603773585" cy="902.1698113207547" r="37.735849056603776" fill="white"/>
+</g>
+    <text x="36" y="607" font-size="21" fill="#167348" font-weight="700">Copper gap: 0.1036 mm / required: 0.1000 mm / PASS</text>
+    <text x="36" y="643" font-size="18">Green: same net. Orange: foreign net. Pale orange: 0.1 mm clearance envelope.</text>
+    <text x="36" y="675" font-size="16">Both layers follow the via; top layer shown. All frames are actual solver inputs or outputs.</text>
+    </g></svg>
