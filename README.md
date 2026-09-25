@@ -118,6 +118,21 @@ if (solver.failed) {
 
 The package also exports `UselessViaRemovalSolver`, `SameNetViaMergerSolver`, `CrossingViaReductionSolver`, and `MultiSimplifiedPathSolver` for running individual phases. Their constructor options and result accessors differ; see their implementations in [lib/solvers](lib/solvers) and the complete exports in [index.ts](index.ts).
 
+For DRC repair, `SameNetViaMergerSolver` accepts `clearanceConstraints` with
+`traceMargin`, `obstacleMargin`, and an optional `boardEdgeMargin`, in millimeters.
+This mode validates the resulting attached wires, preserves existing same-net
+contacts, and only reuses occupied via sites with equal copper diameters. It
+publishes one group at a time so later checks see earlier accepted changes.
+Use `preserveRouteEndpoints: true` to keep splice boundaries fixed.
+
+An optional `acceptMerge(candidateRoutes)` callback can require additional
+whole-board checks before a clearance-preserving candidate is accepted. It must
+not mutate the proposed routes. A rejected candidate leaves the current routes
+unchanged, and another occupied target can still be considered. The callback
+requires `clearanceConstraints`. Omitting these options retains the original
+topology simplification behavior for callers with subsequent routing and repair
+stages.
+
 ## Development
 
 CI uses Bun `1.3.8`.
