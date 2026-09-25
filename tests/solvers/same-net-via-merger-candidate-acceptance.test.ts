@@ -15,19 +15,20 @@ test("evaluates another occupied target after a candidate is rejected without le
     preserveRouteEndpoints: true,
     clearanceConstraints: { traceMargin: 0.1, obstacleMargin: 0.1 },
     connMap: new ConnectivityMap({ power: ["left", "diagonal"] }),
-    acceptMerge: (routes): boolean => {
-      targets.push(routes[0]!.vias[0]!.x)
-      return routes.every((route) => route.vias[0]!.x === 0)
-    },
   })
-  solver.solve()
-  expect(solver.solved).toBe(true)
+  let accepted = input
+  for (const { routes } of solver.getClearancePreservingMergeCandidates()) {
+    targets.push(routes[0]!.vias[0]!.x)
+    expect(solver.getMergedViaHdRoutes()).toEqual(original)
+    if (routes.every((route) => route.vias[0]!.x === 0)) {
+      accepted = routes
+      break
+    }
+  }
   expect(targets).toEqual([-0.1, 0])
-  expect(solver.getMergedViaHdRoutes()!.flatMap((route) => route.vias)).toEqual(
-    [
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
-    ],
-  )
+  expect(accepted.flatMap((route) => route.vias)).toEqual([
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+  ])
   expect(input).toEqual(original)
 })
