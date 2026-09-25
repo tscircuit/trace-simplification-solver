@@ -37,28 +37,58 @@ test("same-net via merging reuses an immutable via without mutating it", () => {
     x: 0,
   })
   const immutableSnapshot = structuredClone(immutableRoute)
-  const solver = new SameNetViaMergerSolver({
+  const solverInput = {
     inputHdRoutes: [editableRoute],
     otherHdRoutes: [immutableRoute],
     netByConnectionName: new Map([["preloaded_fixed_0", "net0"]]),
     obstacles: [],
-    colorMap: {},
+    colorMap: { editable: "purple" },
     layerCount: 2,
     connMap: new ConnectivityMap({
       net0: ["editable"],
     }),
-  })
+  }
+  const solver = new SameNetViaMergerSolver(solverInput)
 
   solver.solve()
 
   expect(solver.failed).toBeFalse()
   const [mergedRoute] = solver.getMergedViaHdRoutes()!
-  expect(mergedRoute!.vias).toHaveLength(0)
+  expect(mergedRoute!.vias).toEqual([{ x: 0, y: 0 }])
   expect(
     mergedRoute!.route.filter(
       (point, pointIndex) =>
         pointIndex > 0 && point.z !== mergedRoute!.route[pointIndex - 1]!.z,
     ),
   ).toEqual([{ x: 0, y: 0, z: 1 }])
+  expect(immutableRoute).toEqual(immutableSnapshot)
+  expect(solver.solved).toBeTrue()
+
+  const replay = new SameNetViaMergerSolver({
+    ...solverInput,
+    inputHdRoutes: [mergedRoute!],
+  })
+  replay.solve()
+  expect(replay.solved).toBeTrue()
+  expect(replay.getMergedViaHdRoutes()).toEqual([mergedRoute!])
+
+  const nearbyRoute = makeViaRoute({
+    connectionName: "nearby",
+    rootConnectionName: "net0",
+    x: 0.25,
+  })
+  const sharedAnchorSolver = new SameNetViaMergerSolver({
+    ...solverInput,
+    inputHdRoutes: [nearbyRoute, mergedRoute!],
+    netByConnectionName: new Map([
+      ["preloaded_fixed_0", "net0"],
+      ["nearby", "net0"],
+    ]),
+  })
+  sharedAnchorSolver.solve()
+  expect(sharedAnchorSolver.solved).toBeTrue()
+  expect(
+    sharedAnchorSolver.getMergedViaHdRoutes()!.map((route) => route.vias),
+  ).toEqual([[{ x: 0, y: 0 }], [{ x: 0, y: 0 }]])
   expect(immutableRoute).toEqual(immutableSnapshot)
 })
