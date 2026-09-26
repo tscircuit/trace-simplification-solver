@@ -25,6 +25,8 @@ export interface SameNetViaMergerSolverInput {
   outline?: Array<{ x: number; y: number }>
   /** Prevent transition clusters that touch a route endpoint from moving. */
   preserveRouteEndpoints?: boolean
+  /** Opt into clearance-preserving final cleanup instead of topology merging. */
+  traceMargin?: number
 }
 
 type Via = {
@@ -128,6 +130,8 @@ const canMoveViaTo = (
     mergedViaHdRoutes: HighDensityRoute[]
     hdRouteSHI: HighDensityRouteSpatialIndex
     obstacleSHI: ObstacleSpatialHashIndex
+    traceMargin?: number
+    proposedRoute?: HighDensityRoute
     netByConnectionName?: ReadonlyMap<string, string>
   },
 ): boolean => {
@@ -156,17 +160,37 @@ const canMoveViaTo = (
     )
   }
 
-  for (const z of transitionLayers) {
+  const segments = [...transitionLayers].map((z) => ({
+    start: { x: viaToRemove.x, y: viaToRemove.y, z },
+    end: { x: viaKeep.x, y: viaKeep.y, z },
+  }))
+  // Moving a via also bends its attached wires, far beyond the via's short path.
+  const atVia = (p: { x: number; y: number }) =>
+    p.x === viaToRemove.x && p.y === viaToRemove.y
+  for (
+    let i = 1;
+    context.traceMargin !== undefined && i < route.route.length;
+    i++
+  ) {
+    const a = route.route[i - 1]!,
+      b = route.route[i]!
+    if (a.z !== b.z || (!atVia(a) && !atVia(b))) continue
+    const moved = (p: typeof a) =>
+      atVia(p) ? { ...p, x: viaKeep.x, y: viaKeep.y } : p
+    segments.push({
+      start: context.proposedRoute?.route[i - 1] ?? moved(a),
+      end: context.proposedRoute?.route[i] ?? moved(b),
+    })
+  }
+  for (const { start, end } of segments) {
     const traceThickness = route.traceThickness
-    const start = { x: viaToRemove.x, y: viaToRemove.y, z }
-    const end = { x: viaKeep.x, y: viaKeep.y, z }
 
     if (start.x === end.x && start.y === end.y) continue
 
     const conflictingRoutes = context.hdRouteSHI.getConflictingRoutesForSegment(
       start,
       end,
-      traceThickness / 2,
+      traceThickness / 2 + (context.traceMargin ?? 0),
     )
 
     for (const { conflictingRoute, distance } of conflictingRoutes) {
@@ -180,9 +204,11 @@ const canMoveViaTo = (
       )
         continue
 
-      const minDistance =
-        traceThickness / 2 + conflictingRoute.traceThickness / 2
-      if (distance < minDistance) return false
+      if (
+        context.traceMargin !== undefined ||
+        distance < traceThickness / 2 + conflictingRoute.traceThickness / 2
+      )
+        return false
     }
 
     const segmentBox = {
@@ -205,7 +231,7 @@ const canMoveViaTo = (
           `SameNetViaMergerSolver found obstacle without zLayers near via at (${viaToRemove.x}, ${viaToRemove.y})`,
         )
       }
-      if (!obstacle.__zLayers.includes(z)) continue
+      if (!obstacle.__zLayers.includes(start.z)) continue
       if (obstacleIsSameNet(context.connMap, obstacle, viaToRemove)) continue
       if (segmentToBoxMinDistance(start, end, obstacle) < searchMargin) {
         return false
@@ -248,6 +274,12 @@ export class SameNetViaMergerSolver extends BaseSolver {
     super()
     if (!input.connMap) {
       throw new Error("SameNetViaMergerSolver requires connMap")
+    }
+    if (
+      !Number.isFinite(input.traceMargin ?? 0) ||
+      (input.traceMargin ?? 0) < 0
+    ) {
+      throw new Error("traceMargin must be finite and nonnegative")
     }
 
     this.input = {
@@ -407,14 +439,12 @@ export class SameNetViaMergerSolver extends BaseSolver {
               const nearMergeDistance =
                 directOverlapDistance * NEAR_VIA_MERGE_DISTANCE_MULTIPLIER
 
-              if (squaredDistance === 0) {
-                if (!keep.mutable) remove.push(candidate)
-                continue
-              }
+              // Co-located route entries already describe one physical via.
+              if (squaredDistance === 0) continue
 
               if (
-                squaredDistance <=
-                directOverlapDistance * directOverlapDistance
+                this.input.traceMargin === undefined &&
+                squaredDistance <= directOverlapDistance * directOverlapDistance
               ) {
                 remove.push(candidate)
                 continue
@@ -422,11 +452,14 @@ export class SameNetViaMergerSolver extends BaseSolver {
 
               if (
                 squaredDistance <= nearMergeDistance * nearMergeDistance &&
+                (this.input.traceMargin === undefined ||
+                  candidate.diameter <= keep.diameter) &&
                 canMoveViaTo(candidate, keep, {
                   connMap: this.connMap,
                   mergedViaHdRoutes: this.mergedViaHdRoutes,
                   hdRouteSHI: this.hdRouteSHI,
                   obstacleSHI: this.obstacleSHI,
+                  traceMargin: this.input.traceMargin,
                   netByConnectionName: this.netByConnectionName,
                 })
               ) {
@@ -467,23 +500,18 @@ export class SameNetViaMergerSolver extends BaseSolver {
       return a.keep.routeIndex - b.keep.routeIndex
     })
 
+    if (this.input.traceMargin !== undefined) return candidateGroups
     for (const candidateGroup of candidateGroups) {
       const keepKey = this.getViaLocationKey(candidateGroup.keep)
       if (touchedViaKeys.has(keepKey)) continue
-
       const remove = candidateGroup.remove.filter(
-        (viaToRemove) =>
-          !touchedViaKeys.has(this.getViaLocationKey(viaToRemove)),
+        (via) => !touchedViaKeys.has(this.getViaLocationKey(via)),
       )
       if (remove.length === 0) continue
-
       groups.push({ keep: candidateGroup.keep, remove })
       touchedViaKeys.add(keepKey)
-      for (const viaToRemove of remove) {
-        touchedViaKeys.add(this.getViaLocationKey(viaToRemove))
-      }
+      for (const via of remove) touchedViaKeys.add(this.getViaLocationKey(via))
     }
-
     return groups
   }
 
@@ -545,10 +573,11 @@ export class SameNetViaMergerSolver extends BaseSolver {
       route[routePointIndex] = { ...point, x: viaKeep.x, y: viaKeep.y }
     }
 
-    routeToUpdate.vias = routeToUpdate.vias.flatMap((vx) => {
+    // Retain each route's layer transition when sharing an immutable via.
+    routeToUpdate.vias = routeToUpdate.vias.map((vx) => {
       if (vx.x !== viaToRemove.x || vx.y !== viaToRemove.y) return vx
       replacedVia = true
-      return viaKeep.mutable ? [{ x: viaKeep.x, y: viaKeep.y }] : []
+      return { x: viaKeep.x, y: viaKeep.y }
     })
     if (!replacedVia) {
       throw new Error(
@@ -561,6 +590,19 @@ export class SameNetViaMergerSolver extends BaseSolver {
   }
 
   _step(): void {
+    if (this.input.traceMargin !== undefined) {
+      const next = this.getClearancePreservingMergeCandidates().next()
+      if (next.done) {
+        this.solved = true
+        return
+      }
+      this.mergedViaHdRoutes = next.value.routes
+      this.rebuildVias()
+      this.hdRouteSHI = this.createHdRouteSpatialIndex()
+      this.stats.mergedViaCount =
+        (this.stats.mergedViaCount ?? 0) + next.value.mergedViaCount
+      return
+    }
     const groups = this.getOffendingViaGroupsBatch()
 
     if (groups.length === 0) {
@@ -570,8 +612,8 @@ export class SameNetViaMergerSolver extends BaseSolver {
 
     let mergedViaCount = 0
     for (const group of groups) {
-      for (const viaToRemove of group.remove) {
-        this.moveViaTo(viaToRemove, group.keep, false)
+      for (const via of group.remove) {
+        this.moveViaTo(via, group.keep, false)
         mergedViaCount++
       }
     }
@@ -579,6 +621,34 @@ export class SameNetViaMergerSolver extends BaseSolver {
     this.hdRouteSHI = this.createHdRouteSpatialIndex()
     this.stats.mergedViaGroups = groups.length
     this.stats.mergedViaCount = mergedViaCount
+  }
+
+  /** Independent proposals against the current copper, without committing them. */
+  *getClearancePreservingMergeCandidates(): Generator<{
+    routes: HighDensityRoute[]
+    mergedViaCount: number
+  }> {
+    if (this.input.traceMargin === undefined)
+      throw new Error("Clearance-preserving candidates require traceMargin")
+    for (const group of this.getOffendingViaGroupsBatch()) {
+      const previous = this.mergedViaHdRoutes
+      this.mergedViaHdRoutes = structuredClone(previous)
+      for (const via of group.remove) this.moveViaTo(via, group.keep, false)
+      const valid = group.remove.every((via) =>
+        canMoveViaTo(via, group.keep, {
+          connMap: this.connMap,
+          mergedViaHdRoutes: previous,
+          proposedRoute: this.mergedViaHdRoutes[via.routeIndex],
+          hdRouteSHI: this.hdRouteSHI,
+          obstacleSHI: this.obstacleSHI,
+          traceMargin: this.input.traceMargin,
+          netByConnectionName: this.netByConnectionName,
+        }),
+      )
+      const routes = this.mergedViaHdRoutes
+      this.mergedViaHdRoutes = previous
+      if (valid) yield { routes, mergedViaCount: group.remove.length }
+    }
   }
 
   getMergedViaHdRoutes(): HighDensityRoute[] | null {

@@ -53,7 +53,7 @@ test("same-net via merging reuses an immutable via without mutating it", () => {
 
   expect(solver.failed).toBeFalse()
   const [mergedRoute] = solver.getMergedViaHdRoutes()!
-  expect(mergedRoute!.vias).toHaveLength(0)
+  expect(mergedRoute!.vias).toEqual([{ x: 0, y: 0 }])
   expect(
     mergedRoute!.route.filter(
       (point, pointIndex) =>
@@ -61,4 +61,16 @@ test("same-net via merging reuses an immutable via without mutating it", () => {
     ),
   ).toEqual([{ x: 0, y: 0, z: 1 }])
   expect(immutableRoute).toEqual(immutableSnapshot)
+  const replay = new SameNetViaMergerSolver({
+    inputHdRoutes: [mergedRoute!],
+    otherHdRoutes: [immutableRoute],
+    netByConnectionName: new Map([["preloaded_fixed_0", "net0"]]),
+    obstacles: [],
+    colorMap: {},
+    layerCount: 2,
+    connMap: new ConnectivityMap({ net0: ["editable"] }),
+  })
+  replay.solve()
+  expect(replay.solved).toBe(true)
+  expect(replay.getMergedViaHdRoutes()).toEqual([mergedRoute!])
 })
