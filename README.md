@@ -93,9 +93,10 @@ The exported `TraceSimplificationSolverOptions` type describes the constructor o
 | `netByConnectionName` | `ReadonlyMap<string, string>` providing explicit net identities for via merging, useful for synthetic connection names. |
 | `useTraceWidthAwareClearance` | Use actual segment widths for path-simplification clearance checks; off by default. |
 | `enableVertexShortcuts` | Run vertex cleanup after path sampling; off by default. |
+| `iterations` | Positive integer number of complete pipeline passes; defaults to `2`. |
 | `terminalLayerIndicesByPcbPortId` | Map PCB-port IDs to sets of physical layer indices on which the terminal can accept an endpoint without a via. |
 
-To change the number of pipeline passes, set `solver.MAX_SIMPLIFICATION_PIPELINE_LOOPS` before solving. This is separate from the step limit, `solver.MAX_ITERATIONS`.
+To run another cleanup pass after path simplification opens space for via removal, pass `iterations: 3` to the constructor. This is separate from the step limit, `solver.MAX_ITERATIONS`.
 
 ## Incremental solving and visualization
 
