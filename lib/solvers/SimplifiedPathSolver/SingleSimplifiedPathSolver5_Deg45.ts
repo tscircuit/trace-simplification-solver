@@ -944,6 +944,11 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         !this.arePointsEqual(newTailPoint, lastRoutePoint)
       ) {
         this.newRoute.push(newTailPoint)
+        // Start the next validated path at the vertex appended above.
+        this.tailDistanceAlongPath =
+          newTailIndex === 0
+            ? 0
+            : this.pathSegments[newTailIndex - 1].endDistance
       }
 
       return

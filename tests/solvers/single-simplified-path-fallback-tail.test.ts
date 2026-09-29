@@ -129,14 +129,13 @@ const renderPanel = (graphics: GraphicsObject) =>
     hideInlineLabels: true,
   })
 
-test("captures the near-zero join created from a stale fallback tail", () => {
+test("keeps the next path aligned with the appended fallback vertex", () => {
   const { solver } = createSolver(0.24996)
   const nearZeroSegments = getPositiveSegments(solver.simplifiedRoute).filter(
     (segment) => segment.length < 1e-4,
   )
 
-  expect(nearZeroSegments).toHaveLength(1)
-  expect(nearZeroSegments[0]!.length).toBeCloseTo(3.999556305450396e-5, 14)
+  expect(nearZeroSegments).toEqual([])
 })
 
 test("visualizes the fallback-tail transition", () => {
@@ -147,8 +146,7 @@ test("visualizes the fallback-tail transition", () => {
     (segment) => segment.length < 0.1,
   )
 
-  expect(staleJoin).toBeDefined()
-  expect(staleJoin!.length).toBeCloseTo(0.04999470057233816, 14)
+  expect(staleJoin).toBeUndefined()
 
   const blockerGraphics = getBlockerGraphics()
   const inputGraphics: GraphicsObject = {

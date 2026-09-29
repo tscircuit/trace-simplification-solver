@@ -64,7 +64,7 @@ const getPositiveSameLayerSegments = (route: HighDensityRoute) =>
     return [{ index, start: previousPoint, end: point, length }]
   })
 
-test("captures the exact Trial239 near-zero segment", async () => {
+test("does not create a near-zero segment from the exact Trial239 stitched route", async () => {
   const {
     connMap,
     netByConnectionName,
@@ -114,22 +114,7 @@ test("captures the exact Trial239 near-zero segment", async () => {
   const nearZeroSegments = getPositiveSameLayerSegments(
     outputTargetRoute!,
   ).filter((segment) => segment.length < MIN_SAME_LAYER_SEGMENT_LENGTH)
-  expect(nearZeroSegments).toEqual([
-    {
-      index: 5,
-      start: {
-        x: 5.010898489404214,
-        y: -25.99054633082335,
-        z: 2,
-      },
-      end: {
-        x: 5.010936336969285,
-        y: -25.99054633082335,
-        z: 2,
-      },
-      length: 3.7847565071302824e-5,
-    },
-  ])
+  expect(nearZeroSegments).toEqual([])
 
   const graphics = solver.visualize()
   for (const line of graphics.lines ?? []) delete line.label
