@@ -5,6 +5,8 @@ import { calculate45DegreePaths } from "../../utils/calculate45DegreePaths"
 import { GraphicsObject } from "graphics-debug"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
 
+type ConnectivityId = string
+
 interface Point {
   x: number
   y: number
@@ -38,6 +40,10 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
     colorMap: Record<string, string>
     outline?: Array<{ x: number; y: number }>
     minBoardEdgeClearance?: number
+    netConnectedToIdByConnectivityId?: Record<
+      ConnectivityId,
+      string | undefined
+    >
   }) {
     super()
 

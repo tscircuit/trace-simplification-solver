@@ -16,6 +16,8 @@ type Phase =
   | "via_merging"
   | "path_simplification"
 
+type ConnectionName = HighDensityRoute["connectionName"]
+
 const VIA_INSIDE_OBSTACLE_TOLERANCE = 1e-6
 
 const pointInsideObstacle = (
@@ -50,6 +52,11 @@ export class TraceSimplificationSolver extends BaseSolver {
   }
 
   hdRoutes: HighDensityRoute[] = []
+
+  private readonly sameNetMultilayerObstaclesByConnectionName = new Map<
+    ConnectionName,
+    Obstacle[]
+  >()
 
   private readonly preservedRouteEndpoints?: ReadonlyMap<
     string,
@@ -228,15 +235,31 @@ export class TraceSimplificationSolver extends BaseSolver {
     )
   }
 
+  private getSameNetMultilayerObstacles(route: HighDensityRoute) {
+    const cachedObstacles = this.sameNetMultilayerObstaclesByConnectionName.get(
+      route.connectionName,
+    )
+    if (cachedObstacles) return cachedObstacles
+
+    const sameNetObstacles = this.simplificationConfig.obstacles.filter(
+      (obstacle) =>
+        isMultilayerObstacle(obstacle) &&
+        this.isSameNetObstacle(route, obstacle),
+    )
+    this.sameNetMultilayerObstaclesByConnectionName.set(
+      route.connectionName,
+      sameNetObstacles,
+    )
+    return sameNetObstacles
+  }
+
   private getSameNetObstacleForSegment(
     route: HighDensityRoute,
     start: { x: number; y: number },
     end: { x: number; y: number },
   ) {
-    return this.simplificationConfig.obstacles.find(
+    return this.getSameNetMultilayerObstacles(route).find(
       (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
-        this.isSameNetObstacle(route, obstacle) &&
         pointInsideObstacle(start, obstacle) &&
         pointInsideObstacle(end, obstacle),
     )
@@ -246,11 +269,8 @@ export class TraceSimplificationSolver extends BaseSolver {
     route: HighDensityRoute,
     via: { x: number; y: number },
   ) {
-    return this.simplificationConfig.obstacles.some(
-      (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
-        this.isSameNetObstacle(route, obstacle) &&
-        pointInsideObstacle(via, obstacle),
+    return this.getSameNetMultilayerObstacles(route).some((obstacle) =>
+      pointInsideObstacle(via, obstacle),
     )
   }
 

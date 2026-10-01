@@ -27,6 +27,9 @@ interface Point {
   z: number
 }
 
+type ConnectionId = HighDensityIntraNodeRoute["connectionName"]
+type ConnectivityId = string
+
 interface PathSegment {
   start: Point
   end: Point
@@ -72,35 +75,71 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   TRACE_THICKNESS = 0.15
   private useTraceWidthAwareClearance = false
   private clearanceTraceThickness = this.TRACE_THICKNESS
+  private inputRouteIds: ConnectionId[] = []
+  private isConnectedToInputRouteById = new Map<ConnectionId, boolean>()
+  private netConnectedToIdByConnectivityId: Record<
+    ConnectivityId,
+    string | undefined
+  >
 
   TAIL_JUMP_RATIO: number = 0.8
 
+  private getNetConnectedToId(connectivityId: ConnectivityId) {
+    if (connectivityId in this.netConnectedToIdByConnectivityId) {
+      return this.netConnectedToIdByConnectivityId[connectivityId]
+    }
+    const netId = this.connMap.getNetConnectedToId(connectivityId)
+    this.netConnectedToIdByConnectivityId[connectivityId] = netId
+    return netId
+  }
+
+  private isConnectedToInputRoute(connectionId: ConnectionId): boolean {
+    const cached = this.isConnectedToInputRouteById.get(connectionId)
+    if (cached !== undefined) return cached
+    const connected = this.inputRouteIds.some((inputRouteId) => {
+      if (inputRouteId === connectionId) return true
+      const inputRouteNetId = this.getNetConnectedToId(inputRouteId)
+      if (!inputRouteNetId) return false
+      const connectionNetId = this.getNetConnectedToId(connectionId)
+      if (!connectionNetId) return false
+      return (
+        inputRouteNetId === connectionNetId || connectionNetId === inputRouteId
+      )
+    })
+    this.isConnectedToInputRouteById.set(connectionId, connected)
+    return connected
+  }
+
   private isSameNetRoute(otherRoute: HighDensityIntraNodeRoute): boolean {
-    const inputRouteIds = [
-      this.inputRoute.connectionName,
-      this.inputRoute.rootConnectionName,
-    ].filter((id): id is string => id !== undefined)
     const otherRouteIds = [
       otherRoute.connectionName,
       otherRoute.rootConnectionName,
     ].filter((id): id is string => id !== undefined)
 
-    return inputRouteIds.some((inputRouteId) =>
-      otherRouteIds.some(
-        (otherRouteId) =>
-          inputRouteId === otherRouteId ||
-          this.connMap.areIdsConnected(inputRouteId, otherRouteId),
-      ),
+    return otherRouteIds.some((connectionId) =>
+      this.isConnectedToInputRoute(connectionId),
     )
   }
 
   constructor(
     params: ConstructorParameters<typeof SingleSimplifiedPathSolver>[0] & {
       useTraceWidthAwareClearance?: boolean
+      netConnectedToIdByConnectivityId?: Record<
+        ConnectivityId,
+        string | undefined
+      >
     },
   ) {
     super(params)
 
+    this.inputRouteIds = [
+      this.inputRoute.connectionName,
+      this.inputRoute.rootConnectionName,
+    ].filter(
+      (connectionId): connectionId is string => connectionId !== undefined,
+    )
+    this.netConnectedToIdByConnectivityId =
+      params.netConnectedToIdByConnectivityId ?? {}
     this.cachedValidPathSegments = new Set()
     this.useTraceWidthAwareClearance =
       params.useTraceWidthAwareClearance ?? false
@@ -150,33 +189,23 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    this.filteredObstacles = this.obstacles
-      .filter(
-        (obstacle) =>
-          !obstacle.connectedTo.some((id) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, id),
-          ),
-      )
-      .filter((obstacle) => {
-        if (
-          obstacle.connectedTo.some((obsId) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, obsId),
-          )
-        ) {
-          return false
-        }
-
-        const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-
-        if (
-          distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
-        ) {
-          return true
-        }
-
+    this.filteredObstacles = this.obstacles.filter((obstacle) => {
+      if (
+        obstacle.connectedTo.some((connectionId) =>
+          this.isConnectedToInputRoute(connectionId),
+        )
+      ) {
         return false
-      })
+      }
+
+      const distance = computeGapBetweenBoxes(boundsBox, obstacle)
+
+      if (distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2) {
+        return true
+      }
+
+      return false
+    })
 
     this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(
       (hdRoute) => {

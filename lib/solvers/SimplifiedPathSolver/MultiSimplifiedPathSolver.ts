@@ -9,6 +9,8 @@ import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 
+type ConnectivityId = string
+
 export class MultiSimplifiedPathSolver extends BaseSolver {
   override getSolverName(): string {
     return "MultiSimplifiedPathSolver"
@@ -30,6 +32,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
   enableVertexShortcuts: boolean
+  netConnectedToIdByConnectivityId: Record<ConnectivityId, string | undefined> =
+    {}
 
   constructor(params: {
     unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
@@ -94,6 +98,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         outline: this.outline,
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
+        netConnectedToIdByConnectivityId: this.netConnectedToIdByConnectivityId,
       })
       this.currentUnsimplifiedHdRouteIndex++
       return
