@@ -7,6 +7,7 @@ import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { BaseSolver } from "../BaseSolver"
 import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
+import { SimplificationRouteSpatialIndex } from "./SimplificationRouteSpatialIndex"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 
 type ConnectivityId = string
@@ -32,6 +33,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
   enableVertexShortcuts: boolean
+  routeSpatialIndex: SimplificationRouteSpatialIndex
   netConnectedToIdByConnectivityId: Record<ConnectivityId, string | undefined> =
     {}
 
@@ -74,6 +76,10 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
 
     this.simplifiedHdRoutes = []
+    this.routeSpatialIndex = new SimplificationRouteSpatialIndex({
+      unsimplifiedHdRoutes: this.unsimplifiedHdRoutes,
+      otherHdRoutes: this.otherHdRoutes,
+    })
   }
 
   _step() {
@@ -87,11 +93,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
 
       this.activeSubSolver = new SingleSimplifiedPathSolver5({
         inputRoute: hdRoute,
-        otherHdRoutes: this.otherHdRoutes.concat(
-          this.unsimplifiedHdRoutes
-            .slice(this.currentUnsimplifiedHdRouteIndex + 1)
-            .concat(this.simplifiedHdRoutes),
-        ),
+        otherHdRoutes: this.routeSpatialIndex.getOtherHdRoutes({
+          currentRouteIndex: this.currentUnsimplifiedHdRouteIndex,
+          simplifiedHdRoutes: this.simplifiedHdRoutes,
+          useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
+        }),
         obstacles: this.obstacles,
         connMap: this.connMap,
         colorMap: this.colorMap,
