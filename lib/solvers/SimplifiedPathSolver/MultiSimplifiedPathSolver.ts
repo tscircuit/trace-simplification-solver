@@ -7,7 +7,7 @@ import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { BaseSolver } from "../BaseSolver"
 import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
-import { SimplificationRouteSpatialIndex } from "./SimplificationRouteSpatialIndex"
+import { SimplificationObstacleIndex } from "./SimplificationObstacleIndex"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 
 type ConnectivityId = string
@@ -33,7 +33,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
   enableVertexShortcuts: boolean
-  routeSpatialIndex: SimplificationRouteSpatialIndex
+  obstacleIndex: SimplificationObstacleIndex
   netConnectedToIdByConnectivityId: Record<ConnectivityId, string | undefined> =
     {}
 
@@ -76,7 +76,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
 
     this.simplifiedHdRoutes = []
-    this.routeSpatialIndex = new SimplificationRouteSpatialIndex({
+    this.obstacleIndex = new SimplificationObstacleIndex({
       unsimplifiedHdRoutes: this.unsimplifiedHdRoutes,
       otherHdRoutes: this.otherHdRoutes,
     })
@@ -93,11 +93,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
 
       this.activeSubSolver = new SingleSimplifiedPathSolver5({
         inputRoute: hdRoute,
-        otherHdRoutes: this.routeSpatialIndex.getOtherHdRoutes({
-          currentRouteIndex: this.currentUnsimplifiedHdRouteIndex,
-          simplifiedHdRoutes: this.simplifiedHdRoutes,
-          useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
-        }),
+        otherHdRoutes: this.otherHdRoutes.concat(
+          this.unsimplifiedHdRoutes
+            .slice(this.currentUnsimplifiedHdRouteIndex + 1)
+            .concat(this.simplifiedHdRoutes),
+        ),
         obstacles: this.obstacles,
         connMap: this.connMap,
         colorMap: this.colorMap,
@@ -105,6 +105,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
         netConnectedToIdByConnectivityId: this.netConnectedToIdByConnectivityId,
+        obstacleIndex: this.obstacleIndex,
+        currentRouteIndex: this.currentUnsimplifiedHdRouteIndex,
       })
       this.currentUnsimplifiedHdRouteIndex++
       return
@@ -128,7 +130,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         })
         return
       }
-      this.simplifiedHdRoutes.push(this.activeSubSolver.simplifiedRoute)
+      const simplifiedRoute = this.activeSubSolver.simplifiedRoute
+      this.obstacleIndex.replaceRoute({
+        routeIndex: this.currentUnsimplifiedHdRouteIndex - 1,
+        route: simplifiedRoute,
+      })
+      this.simplifiedHdRoutes.push(simplifiedRoute)
       this.activeSubSolver = null
     }
   }

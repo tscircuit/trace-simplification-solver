@@ -20,6 +20,12 @@ import {
 } from "@tscircuit/math-utils"
 import { doesSegmentCrossPolygonBoundary } from "../../utils/polygonContainment"
 import { JUMPER_DIMENSIONS } from "../../utils/jumperSizes"
+import {
+  type IndexedJumperPad,
+  type IndexedSegment,
+  type IndexedVia,
+  SimplificationObstacleIndex,
+} from "./SimplificationObstacleIndex"
 
 interface Point {
   x: number
@@ -128,6 +134,8 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         ConnectivityId,
         string | undefined
       >
+      obstacleIndex?: SimplificationObstacleIndex
+      currentRouteIndex?: number
     },
   ) {
     super(params)
@@ -164,8 +172,16 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       },
       { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
     )
+    if (params.obstacleIndex && params.currentRouteIndex === undefined) {
+      throw new Error(
+        "currentRouteIndex is required when using a simplification obstacle index",
+      )
+    }
     const maximumOtherTraceThickness = this.useTraceWidthAwareClearance
-      ? Math.max(
+      ? (params.obstacleIndex?.getMaximumOtherTraceThickness(
+          params.currentRouteIndex ?? 0,
+        ) ??
+        Math.max(
           0,
           ...this.otherHdRoutes.flatMap((route) => [
             route.traceThickness,
@@ -173,7 +189,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
               (point) => point.traceThickness ?? route.traceThickness,
             ),
           ]),
-        )
+        ))
       : this.TRACE_THICKNESS
     const routeSegmentMargin = this.useTraceWidthAwareClearance
       ? this.OBSTACLE_MARGIN +
@@ -188,6 +204,11 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       width: bounds.maxX - bounds.minX,
       height: bounds.maxY - bounds.minY,
     }
+    const nearbyFeatures = params.obstacleIndex?.getNearbyFeatures({
+      bounds,
+      currentRouteIndex: params.currentRouteIndex ?? 0,
+      margin: routeSegmentMargin,
+    })
 
     this.filteredObstacles = this.obstacles.filter((obstacle) => {
       if (
@@ -207,71 +228,94 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       return false
     })
 
-    this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(
-      (hdRoute) => {
+    const indexedSegments = nearbyFeatures?.filter(
+      (feature): feature is IndexedSegment => feature.kind === "segment",
+    )
+    const obstacleRouteSegments = indexedSegments
+      ? indexedSegments.map(({ route, start, end, traceThickness }) => ({
+          hdRoute: route,
+          start,
+          end,
+          traceThickness,
+        }))
+      : this.otherHdRoutes.flatMap((hdRoute) =>
+          hdRoute.route.slice(0, -1).map((start, segmentIndex) => {
+            const end = hdRoute.route[segmentIndex + 1]
+            return {
+              hdRoute,
+              start,
+              end,
+              traceThickness: Math.max(
+                start.traceThickness ?? hdRoute.traceThickness,
+                end.traceThickness ?? hdRoute.traceThickness,
+              ),
+            }
+          }),
+        )
+    this.filteredObstaclePathSegments = obstacleRouteSegments.flatMap(
+      ({ hdRoute, start, end, traceThickness }) => {
         if (this.isSameNetRoute(hdRoute)) {
           return []
         }
 
-        const route = hdRoute.route
-        const segments: Array<[Point, Point]> = []
-        for (let i = 0; i < route.length - 1; i++) {
-          const start = route[i]
-          const end = route[i + 1]
-
-          if (
-            segmentToBoundsMinDistance(start, end, bounds) <= routeSegmentMargin
-          ) {
-            segments.push([start, end])
-            const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
-            if (this.useTraceWidthAwareClearance) {
-              const segmentTraceThickness = Math.max(
-                start.traceThickness ?? hdRoute.traceThickness,
-                end.traceThickness ?? hdRoute.traceThickness,
-              )
-              this.traceThicknessByObstacleSegmentId.set(
-                segmentId,
-                Math.max(
-                  this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
-                  segmentTraceThickness,
-                ),
-              )
-            }
-          }
+        if (
+          segmentToBoundsMinDistance(start, end, bounds) > routeSegmentMargin
+        ) {
+          return []
         }
-
-        return segments
+        const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
+        if (this.useTraceWidthAwareClearance) {
+          this.traceThicknessByObstacleSegmentId.set(
+            segmentId,
+            Math.max(
+              this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
+              traceThickness,
+            ),
+          )
+        }
+        return [[start, end] as [Point, Point]]
       },
     )
     this.segmentTree = this.useTraceWidthAwareClearance
       ? new SegmentTree(this.filteredObstaclePathSegments, routeSegmentMargin)
       : new SegmentTree(this.filteredObstaclePathSegments)
 
-    this.filteredVias = this.otherHdRoutes.flatMap((hdRoute) => {
+    const indexedVias = nearbyFeatures?.filter(
+      (feature): feature is IndexedVia => feature.kind === "via",
+    )
+    const obstacleVias = indexedVias
+      ? indexedVias.map(({ route, center, diameter }) => ({
+          hdRoute: route,
+          via: center,
+          diameter,
+        }))
+      : this.otherHdRoutes.flatMap((hdRoute) =>
+          hdRoute.vias.map((via) => ({
+            hdRoute,
+            via,
+            diameter: hdRoute.viaDiameter,
+          })),
+        )
+    this.filteredVias = obstacleVias.flatMap(({ hdRoute, via, diameter }) => {
       if (this.isSameNetRoute(hdRoute)) {
         return []
       }
 
-      const vias = hdRoute.vias
       const filteredVias: Array<{ x: number; y: number; diameter: number }> = []
-      for (const via of vias) {
-        const margin =
-          this.OBSTACLE_MARGIN +
-          this.clearanceTraceThickness / 2 +
-          hdRoute.viaDiameter / 2
-        const minX = via.x - margin
-        const maxX = via.x + margin
-        const minY = via.y - margin
-        const maxY = via.y + margin
+      const margin =
+        this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2 + diameter / 2
+      const minX = via.x - margin
+      const maxX = via.x + margin
+      const minY = via.y - margin
+      const maxY = via.y + margin
 
-        if (
-          minX <= bounds.maxX &&
-          maxX >= bounds.minX &&
-          minY <= bounds.maxY &&
-          maxY >= bounds.minY
-        ) {
-          filteredVias.push({ ...via, diameter: hdRoute.viaDiameter })
-        }
+      if (
+        minX <= bounds.maxX &&
+        maxX >= bounds.minX &&
+        minY <= bounds.maxY &&
+        maxY >= bounds.minY
+      ) {
+        filteredVias.push({ ...via, diameter })
       }
       return filteredVias
     })
@@ -341,13 +385,37 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     }
 
     // Collect jumper pads from other routes as obstacles
-    this.filteredJumperPads = this.otherHdRoutes.flatMap((hdRoute) => {
-      if (this.isSameNetRoute(hdRoute)) {
-        return []
-      }
-
-      return extractJumperPads(hdRoute.jumpers ?? [], hdRoute.connectionName)
-    })
+    const indexedJumperPads = nearbyFeatures?.filter(
+      (feature): feature is IndexedJumperPad => feature.kind === "jumper_pad",
+    )
+    this.filteredJumperPads = indexedJumperPads
+      ? indexedJumperPads.flatMap(({ route, center, width, height }) => {
+          if (this.isSameNetRoute(route)) return []
+          const margin = this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+          if (
+            center.x - width / 2 - margin > bounds.maxX ||
+            center.x + width / 2 + margin < bounds.minX ||
+            center.y - height / 2 - margin > bounds.maxY ||
+            center.y + height / 2 + margin < bounds.minY
+          ) {
+            return []
+          }
+          return [
+            {
+              center,
+              width,
+              height,
+              connectionName: route.connectionName,
+            },
+          ]
+        })
+      : this.otherHdRoutes.flatMap((hdRoute) => {
+          if (this.isSameNetRoute(hdRoute)) return []
+          return extractJumperPads(
+            hdRoute.jumpers ?? [],
+            hdRoute.connectionName,
+          )
+        })
 
     // Also add our own route's jumper pads as obstacles
     // (we shouldn't simplify traces through our own jumper pads)

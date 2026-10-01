@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
+import { SimplificationObstacleIndex } from "../../lib/solvers/SimplifiedPathSolver/SimplificationObstacleIndex"
 import type { HighDensityIntraNodeRoute } from "../../lib/types/high-density-types"
-import { MultiSimplifiedPathSolver } from "../../lib/solvers/SimplifiedPathSolver/MultiSimplifiedPathSolver"
 
 const createRoute = (params: {
   connectionName: string
@@ -18,7 +18,7 @@ const createRoute = (params: {
   vias: [],
 })
 
-test("only passes spatially relevant routes to the path simplifier in original order", () => {
+test("returns nearby copper features in simplifier route order", () => {
   const previousRoute = createRoute({
     connectionName: "previous-original",
     x: 0,
@@ -34,41 +34,37 @@ test("only passes spatially relevant routes to the path simplifier in original o
     x: 0,
     y: -0.15,
   })
-  const distantFutureRoute = createRoute({
-    connectionName: "distant-future",
-    x: 100,
-    y: 100,
-  })
-  const previousSimplifiedRoute = {
-    ...previousRoute,
-    connectionName: "previous-simplified",
-  }
-  const solver = new MultiSimplifiedPathSolver({
+  const index = new SimplificationObstacleIndex({
     unsimplifiedHdRoutes: [
       previousRoute,
       currentRoute,
       futureRoute,
-      distantFutureRoute,
+      createRoute({ connectionName: "distant-future", x: 100, y: 100 }),
     ],
     otherHdRoutes: [
       createRoute({ connectionName: "immutable-near", x: 0, y: 0.1 }),
       createRoute({ connectionName: "immutable-far", x: -100, y: -100 }),
     ],
-    obstacles: [],
   })
-  solver.currentUnsimplifiedHdRouteIndex = 1
-  solver.simplifiedHdRoutes = [previousSimplifiedRoute]
+  index.replaceRoute({
+    routeIndex: 0,
+    route: { ...previousRoute, connectionName: "previous-simplified" },
+  })
 
-  solver.step()
+  const features = index.getNearbyFeatures({
+    bounds: { minX: 0, minY: 0, maxX: 2, maxY: 0 },
+    currentRouteIndex: 1,
+    margin: 0.25,
+  })
 
-  expect(
-    solver.activeSubSolver?.otherHdRoutes.map(
-      ({ connectionName }) => connectionName,
-    ),
-  ).toEqual(["immutable-near", "future", "previous-simplified"])
+  expect(features.map(({ route }) => route.connectionName)).toEqual([
+    "immutable-near",
+    "future",
+    "previous-simplified",
+  ])
 })
 
-test("includes routes whose via, jumper pad, or wide copper reaches the query", () => {
+test("indexes segments, vias, and jumper pads separately", () => {
   const routeWithNearbyVia = createRoute({
     connectionName: "nearby-via",
     x: 100,
@@ -88,7 +84,7 @@ test("includes routes whose via, jumper pad, or wide copper reaches the query", 
       footprint: "0603",
     },
   ]
-  const solver = new MultiSimplifiedPathSolver({
+  const index = new SimplificationObstacleIndex({
     unsimplifiedHdRoutes: [
       createRoute({ connectionName: "current", x: 0, y: 0 }),
     ],
@@ -102,15 +98,20 @@ test("includes routes whose via, jumper pad, or wide copper reaches the query", 
       routeWithNearbyVia,
       routeWithNearbyJumper,
     ],
-    obstacles: [],
-    useTraceWidthAwareClearance: true,
   })
 
-  solver.step()
+  const features = index.getNearbyFeatures({
+    bounds: { minX: 0, minY: 0, maxX: 2, maxY: 0 },
+    currentRouteIndex: 0,
+    margin: 0.675,
+  })
 
   expect(
-    solver.activeSubSolver?.otherHdRoutes.map(
-      ({ connectionName }) => connectionName,
-    ),
-  ).toEqual(["wide-copper", "nearby-via", "nearby-jumper"])
+    features.map(({ kind, route }) => [kind, route.connectionName]),
+  ).toEqual([
+    ["segment", "wide-copper"],
+    ["via", "nearby-via"],
+    ["jumper_pad", "nearby-jumper"],
+    ["jumper_pad", "nearby-jumper"],
+  ])
 })
