@@ -83,6 +83,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   private clearanceTraceThickness = this.TRACE_THICKNESS
   private inputRouteIds: ConnectionId[] = []
   private isConnectedToInputRouteById = new Map<ConnectionId, boolean>()
+  private isSameNetRouteByRoute = new WeakMap<
+    HighDensityIntraNodeRoute,
+    boolean
+  >()
   private netConnectedToIdByConnectivityId: Record<
     ConnectivityId,
     string | undefined
@@ -117,14 +121,18 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   }
 
   private isSameNetRoute(otherRoute: HighDensityIntraNodeRoute): boolean {
+    const cached = this.isSameNetRouteByRoute.get(otherRoute)
+    if (cached !== undefined) return cached
     const otherRouteIds = [
       otherRoute.connectionName,
       otherRoute.rootConnectionName,
     ].filter((id): id is string => id !== undefined)
 
-    return otherRouteIds.some((connectionId) =>
+    const isSameNet = otherRouteIds.some((connectionId) =>
       this.isConnectedToInputRoute(connectionId),
     )
+    this.isSameNetRouteByRoute.set(otherRoute, isSameNet)
+    return isSameNet
   }
 
   constructor(
