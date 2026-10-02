@@ -1,4 +1,5 @@
 import RBush from "rbush"
+import type { Obstacle } from "../../types"
 import type {
   HighDensityIntraNodeRoute,
   Jumper,
@@ -48,6 +49,15 @@ export type IndexedObstacleFeature =
   | IndexedSegment
   | IndexedVia
   | IndexedJumperPad
+
+interface IndexedBoardObstacle {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  obstacle: Obstacle
+  obstacleIndex: number
+}
 
 const getJumperPadSize = (
   jumper: Jumper,
@@ -146,6 +156,7 @@ const getMaximumTraceThickness = (route: HighDensityIntraNodeRoute): number =>
 
 export class SimplificationObstacleIndex {
   private tree = new RBush<IndexedObstacleFeature>()
+  private boardObstacleTree = new RBush<IndexedBoardObstacle>()
   private mutableFeaturesByRouteIndex = new Map<
     number,
     IndexedObstacleFeature[]
@@ -156,6 +167,7 @@ export class SimplificationObstacleIndex {
   constructor(params: {
     otherHdRoutes: ReadonlyArray<HighDensityIntraNodeRoute>
     unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
+    obstacles: ReadonlyArray<Obstacle>
   }) {
     this.otherHdRoutes = params.otherHdRoutes
     this.currentHdRoutes = [...params.unsimplifiedHdRoutes]
@@ -176,6 +188,16 @@ export class SimplificationObstacleIndex {
       features.push(...routeFeatures)
     }
     this.tree.load(features)
+    this.boardObstacleTree.load(
+      params.obstacles.map((obstacle, obstacleIndex) => ({
+        obstacle,
+        obstacleIndex,
+        minX: obstacle.center.x - obstacle.width / 2,
+        minY: obstacle.center.y - obstacle.height / 2,
+        maxX: obstacle.center.x + obstacle.width / 2,
+        maxY: obstacle.center.y + obstacle.height / 2,
+      })),
+    )
   }
 
   replaceRoute(params: {
@@ -230,6 +252,21 @@ export class SimplificationObstacleIndex {
       (a, b) =>
         getRouteOrder(a) - getRouteOrder(b) || a.featureIndex - b.featureIndex,
     )
+  }
+
+  getNearbyObstacles(params: {
+    bounds: { minX: number; minY: number; maxX: number; maxY: number }
+    margin: number
+  }): Obstacle[] {
+    return this.boardObstacleTree
+      .search({
+        minX: params.bounds.minX - params.margin,
+        minY: params.bounds.minY - params.margin,
+        maxX: params.bounds.maxX + params.margin,
+        maxY: params.bounds.maxY + params.margin,
+      })
+      .sort((left, right) => left.obstacleIndex - right.obstacleIndex)
+      .map(({ obstacle }) => obstacle)
   }
 
   getMaximumOtherTraceThickness(currentRouteIndex: number): number {

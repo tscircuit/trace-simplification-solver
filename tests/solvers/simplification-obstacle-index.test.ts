@@ -45,6 +45,7 @@ test("returns nearby copper features in simplifier route order", () => {
       createRoute({ connectionName: "immutable-near", x: 0, y: 0.1 }),
       createRoute({ connectionName: "immutable-far", x: -100, y: -100 }),
     ],
+    obstacles: [],
   })
   index.replaceRoute({
     routeIndex: 0,
@@ -98,6 +99,7 @@ test("indexes segments, vias, and jumper pads separately", () => {
       routeWithNearbyVia,
       routeWithNearbyJumper,
     ],
+    obstacles: [],
   })
 
   const features = index.getNearbyFeatures({
@@ -114,4 +116,45 @@ test("indexes segments, vias, and jumper pads separately", () => {
     ["jumper_pad", "nearby-jumper"],
     ["jumper_pad", "nearby-jumper"],
   ])
+})
+
+test("returns nearby board obstacles in their original order", () => {
+  const nearbyFirst = {
+    type: "rect" as const,
+    center: { x: 1, y: 0 },
+    width: 0.5,
+    height: 0.5,
+    layers: ["top"],
+    connectedTo: ["first"],
+  }
+  const distant = {
+    type: "rect" as const,
+    center: { x: 100, y: 100 },
+    width: 1,
+    height: 1,
+    layers: ["top"],
+    connectedTo: ["distant"],
+  }
+  const nearbySecond = {
+    type: "rect" as const,
+    center: { x: 2, y: 0 },
+    width: 0.5,
+    height: 0.5,
+    layers: ["top"],
+    connectedTo: ["second"],
+  }
+  const index = new SimplificationObstacleIndex({
+    unsimplifiedHdRoutes: [],
+    otherHdRoutes: [],
+    obstacles: [nearbyFirst, distant, nearbySecond],
+  })
+
+  expect(
+    index
+      .getNearbyObstacles({
+        bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0 },
+        margin: 0.1,
+      })
+      .map((obstacle) => obstacle.connectedTo[0]),
+  ).toEqual(["first", "second"])
 })

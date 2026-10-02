@@ -217,24 +217,33 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       currentRouteIndex: params.currentRouteIndex ?? 0,
       margin: routeSegmentMargin,
     })
-
-    this.filteredObstacles = this.obstacles.filter((obstacle) => {
-      if (
-        obstacle.connectedTo.some((connectionId) =>
-          this.isConnectedToInputRoute(connectionId),
-        )
-      ) {
-        return false
-      }
-
-      const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-
-      if (distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2) {
-        return true
-      }
-
-      return false
+    const nearbyObstacles = params.obstacleIndex?.getNearbyObstacles({
+      bounds,
+      margin: this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2,
     })
+
+    this.filteredObstacles = (nearbyObstacles ?? this.obstacles).filter(
+      (obstacle) => {
+        if (
+          obstacle.connectedTo.some((connectionId) =>
+            this.isConnectedToInputRoute(connectionId),
+          )
+        ) {
+          return false
+        }
+
+        const distance = computeGapBetweenBoxes(boundsBox, obstacle)
+
+        if (
+          distance <
+          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+        ) {
+          return true
+        }
+
+        return false
+      },
+    )
 
     const indexedSegments = nearbyFeatures?.filter(
       (feature): feature is IndexedSegment => feature.kind === "segment",

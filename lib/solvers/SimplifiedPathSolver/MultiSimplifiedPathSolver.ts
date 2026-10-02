@@ -79,6 +79,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.obstacleIndex = new SimplificationObstacleIndex({
       unsimplifiedHdRoutes: this.unsimplifiedHdRoutes,
       otherHdRoutes: this.otherHdRoutes,
+      obstacles: this.obstacles,
     })
   }
 
