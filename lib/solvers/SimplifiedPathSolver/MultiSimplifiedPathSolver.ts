@@ -7,6 +7,7 @@ import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { BaseSolver } from "../BaseSolver"
 import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
+import { SimplificationObstacleIndex } from "./SimplificationObstacleIndex"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 
 type ConnectivityId = string
@@ -32,6 +33,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
   enableVertexShortcuts: boolean
+  obstacleIndex: SimplificationObstacleIndex
   netConnectedToIdByConnectivityId: Record<ConnectivityId, string | undefined> =
     {}
 
@@ -74,6 +76,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
 
     this.simplifiedHdRoutes = []
+    this.obstacleIndex = new SimplificationObstacleIndex({
+      unsimplifiedHdRoutes: this.unsimplifiedHdRoutes,
+      otherHdRoutes: this.otherHdRoutes,
+      obstacles: this.obstacles,
+    })
   }
 
   _step() {
@@ -99,6 +106,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
         netConnectedToIdByConnectivityId: this.netConnectedToIdByConnectivityId,
+        obstacleIndex: this.obstacleIndex,
+        currentRouteIndex: this.currentUnsimplifiedHdRouteIndex,
       })
       this.currentUnsimplifiedHdRouteIndex++
       return
@@ -122,7 +131,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         })
         return
       }
-      this.simplifiedHdRoutes.push(this.activeSubSolver.simplifiedRoute)
+      const simplifiedRoute = this.activeSubSolver.simplifiedRoute
+      this.obstacleIndex.replaceRoute({
+        routeIndex: this.currentUnsimplifiedHdRouteIndex - 1,
+        route: simplifiedRoute,
+      })
+      this.simplifiedHdRoutes.push(simplifiedRoute)
       this.activeSubSolver = null
     }
   }
