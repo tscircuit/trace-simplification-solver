@@ -228,66 +228,60 @@ export class TraceSimplificationSolver extends BaseSolver {
     )
   }
 
-  private getSameNetObstacleForSegment(
-    route: HighDensityRoute,
-    start: { x: number; y: number },
-    end: { x: number; y: number },
-  ) {
-    return this.simplificationConfig.obstacles.find(
-      (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
-        this.isSameNetObstacle(route, obstacle) &&
-        pointInsideObstacle(start, obstacle) &&
-        pointInsideObstacle(end, obstacle),
-    )
-  }
-
-  private isViaInsideSameNetObstacle(
-    route: HighDensityRoute,
-    via: { x: number; y: number },
-  ) {
-    return this.simplificationConfig.obstacles.some(
-      (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
-        this.isSameNetObstacle(route, obstacle) &&
-        pointInsideObstacle(via, obstacle),
-    )
-  }
-
   markThroughObstacleSegments(
     routes: ReadonlyArray<HighDensityRoute>,
   ): HighDensityRoute[] {
-    return routes.map((route) => ({
-      ...route,
-      route: route.route.map((point, index, points) => {
-        const nextPoint = points[index + 1]
-        const sameNetObstacle =
-          nextPoint &&
-          point.z !== nextPoint.z &&
-          this.getSameNetObstacleForSegment(route, point, nextPoint)
-
-        if (sameNetObstacle) {
-          return {
-            ...point,
-            toNextSegmentType: "through_obstacle" as const,
-            ...(sameNetObstacle.circuitJsonMetadata
-              ? {
-                  toNextSegmentCircuitJsonMetadata:
-                    sameNetObstacle.circuitJsonMetadata,
-                }
-              : {}),
-          }
+    return routes.map((route) => {
+      let sameNetObstacles: Obstacle[] | undefined
+      const getSameNetObstacles = (): Obstacle[] => {
+        if (!sameNetObstacles) {
+          sameNetObstacles = this.simplificationConfig.obstacles.filter(
+            (obstacle) =>
+              isMultilayerObstacle(obstacle) &&
+              this.isSameNetObstacle(route, obstacle),
+          )
         }
+        return sameNetObstacles
+      }
+      return {
+        ...route,
+        route: route.route.map((point, index, points) => {
+          const nextPoint = points[index + 1]
+          const sameNetObstacle =
+            nextPoint &&
+            point.z !== nextPoint.z &&
+            getSameNetObstacles().find(
+              (obstacle) =>
+                pointInsideObstacle(point, obstacle) &&
+                pointInsideObstacle(nextPoint, obstacle),
+            )
 
-        const finalizedPoint = { ...point }
-        delete finalizedPoint.toNextSegmentType
-        delete finalizedPoint.toNextSegmentCircuitJsonMetadata
-        return finalizedPoint
-      }),
-      vias: route.vias.filter(
-        (via) => !this.isViaInsideSameNetObstacle(route, via),
-      ),
-    }))
+          if (sameNetObstacle) {
+            return {
+              ...point,
+              toNextSegmentType: "through_obstacle" as const,
+              ...(sameNetObstacle.circuitJsonMetadata
+                ? {
+                    toNextSegmentCircuitJsonMetadata:
+                      sameNetObstacle.circuitJsonMetadata,
+                  }
+                : {}),
+            }
+          }
+
+          const finalizedPoint = { ...point }
+          delete finalizedPoint.toNextSegmentType
+          delete finalizedPoint.toNextSegmentCircuitJsonMetadata
+          return finalizedPoint
+        }),
+        vias: route.vias.filter(
+          (via) =>
+            !getSameNetObstacles().some((obstacle) =>
+              pointInsideObstacle(via, obstacle),
+            ),
+        ),
+      }
+    })
   }
 
   _step() {
