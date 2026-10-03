@@ -166,9 +166,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       }
 
       const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-      return (
-        distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
-      )
+      return distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
     })
 
     // Connectivity is fixed while this solver builds its obstacle geometry.
@@ -176,38 +174,36 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     const obstacleRoutes = this.otherHdRoutes.filter(
       (route) => !this.isSameNetRoute(route),
     )
-    this.filteredObstaclePathSegments = obstacleRoutes.flatMap(
-      (hdRoute) => {
-        const route = hdRoute.route
-        const segments: Array<[Point, Point]> = []
-        for (let i = 0; i < route.length - 1; i++) {
-          const start = route[i]
-          const end = route[i + 1]
+    this.filteredObstaclePathSegments = obstacleRoutes.flatMap((hdRoute) => {
+      const route = hdRoute.route
+      const segments: Array<[Point, Point]> = []
+      for (let i = 0; i < route.length - 1; i++) {
+        const start = route[i]
+        const end = route[i + 1]
 
-          if (
-            segmentToBoundsMinDistance(start, end, bounds) <= routeSegmentMargin
-          ) {
-            segments.push([start, end])
-            const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
-            if (this.useTraceWidthAwareClearance) {
-              const segmentTraceThickness = Math.max(
-                start.traceThickness ?? hdRoute.traceThickness,
-                end.traceThickness ?? hdRoute.traceThickness,
-              )
-              this.traceThicknessByObstacleSegmentId.set(
-                segmentId,
-                Math.max(
-                  this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
-                  segmentTraceThickness,
-                ),
-              )
-            }
+        if (
+          segmentToBoundsMinDistance(start, end, bounds) <= routeSegmentMargin
+        ) {
+          segments.push([start, end])
+          const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
+          if (this.useTraceWidthAwareClearance) {
+            const segmentTraceThickness = Math.max(
+              start.traceThickness ?? hdRoute.traceThickness,
+              end.traceThickness ?? hdRoute.traceThickness,
+            )
+            this.traceThicknessByObstacleSegmentId.set(
+              segmentId,
+              Math.max(
+                this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
+                segmentTraceThickness,
+              ),
+            )
           }
         }
+      }
 
-        return segments
-      },
-    )
+      return segments
+    })
     this.segmentTree = this.useTraceWidthAwareClearance
       ? new SegmentTree(this.filteredObstaclePathSegments, routeSegmentMargin)
       : new SegmentTree(this.filteredObstaclePathSegments)
