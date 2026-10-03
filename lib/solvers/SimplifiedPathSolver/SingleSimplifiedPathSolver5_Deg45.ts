@@ -44,10 +44,7 @@ type BoundsBox = {
   height: number
 }
 
-const segmentBoundsByRoute = new WeakMap<
-  HighDensityIntraNodeRoute,
-  BoundsBox
->()
+const segmentBoundsByRoute = new WeakMap<HighDensityIntraNodeRoute, BoundsBox>()
 
 function getRouteSegmentBounds(route: HighDensityIntraNodeRoute): BoundsBox {
   const cached = segmentBoundsByRoute.get(route)
