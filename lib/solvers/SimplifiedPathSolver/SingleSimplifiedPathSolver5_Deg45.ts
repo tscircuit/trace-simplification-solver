@@ -16,10 +16,10 @@ import { SegmentTree } from "../../data-structures/SegmentTree"
 import {
   segmentToBoxMinDistance,
   computeGapBetweenBoxes,
-  segmentToBoundsMinDistance,
 } from "@tscircuit/math-utils"
 import { doesSegmentCrossPolygonBoundary } from "../../utils/polygonContainment"
 import { JUMPER_DIMENSIONS } from "../../utils/jumperSizes"
+import { createPreparedBoundsDistance } from "../../utils/createPreparedBoundsDistance"
 
 interface Point {
   x: number
@@ -76,21 +76,27 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   TAIL_JUMP_RATIO: number = 0.8
 
   private isSameNetRoute(otherRoute: HighDensityIntraNodeRoute): boolean {
-    const inputRouteIds = [
-      this.inputRoute.connectionName,
-      this.inputRoute.rootConnectionName,
-    ].filter((id): id is string => id !== undefined)
-    const otherRouteIds = [
-      otherRoute.connectionName,
-      otherRoute.rootConnectionName,
-    ].filter((id): id is string => id !== undefined)
-
-    return inputRouteIds.some((inputRouteId) =>
-      otherRouteIds.some(
-        (otherRouteId) =>
-          inputRouteId === otherRouteId ||
-          this.connMap.areIdsConnected(inputRouteId, otherRouteId),
-      ),
+    const inputId = this.inputRoute.connectionName
+    const inputRootId = this.inputRoute.rootConnectionName
+    const otherId = otherRoute.connectionName
+    const otherRootId = otherRoute.rootConnectionName
+    if (inputId === otherId || this.connMap.areIdsConnected(inputId, otherId)) {
+      return true
+    }
+    if (
+      otherRootId !== undefined &&
+      (inputId === otherRootId ||
+        this.connMap.areIdsConnected(inputId, otherRootId))
+    ) {
+      return true
+    }
+    if (inputRootId === undefined) return false
+    return (
+      inputRootId === otherId ||
+      this.connMap.areIdsConnected(inputRootId, otherId) ||
+      (otherRootId !== undefined &&
+        (inputRootId === otherRootId ||
+          this.connMap.areIdsConnected(inputRootId, otherRootId)))
     )
   }
 
@@ -150,79 +156,58 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    this.filteredObstacles = this.obstacles
-      .filter(
-        (obstacle) =>
-          !obstacle.connectedTo.some((id) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, id),
-          ),
-      )
-      .filter((obstacle) => {
-        if (
-          obstacle.connectedTo.some((obsId) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, obsId),
-          )
-        ) {
-          return false
-        }
-
-        const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-
-        if (
-          distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
-        ) {
-          return true
-        }
-
+    this.filteredObstacles = this.obstacles.filter((obstacle) => {
+      if (
+        obstacle.connectedTo.some((obsId) =>
+          this.connMap.areIdsConnected(this.inputRoute.connectionName, obsId),
+        )
+      ) {
         return false
-      })
+      }
 
-    this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(
-      (hdRoute) => {
-        if (this.isSameNetRoute(hdRoute)) {
-          return []
-        }
+      const distance = computeGapBetweenBoxes(boundsBox, obstacle)
+      return distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    })
 
-        const route = hdRoute.route
-        const segments: Array<[Point, Point]> = []
-        for (let i = 0; i < route.length - 1; i++) {
-          const start = route[i]
-          const end = route[i + 1]
+    // Connectivity is fixed while this solver builds its obstacle geometry.
+    // Reuse the same route classification for segments, vias and jumper pads.
+    const obstacleRoutes = this.otherHdRoutes.filter(
+      (route) => !this.isSameNetRoute(route),
+    )
+    const distanceToRouteBounds = createPreparedBoundsDistance(bounds)
+    this.filteredObstaclePathSegments = obstacleRoutes.flatMap((hdRoute) => {
+      const route = hdRoute.route
+      const segments: Array<[Point, Point]> = []
+      for (let i = 0; i < route.length - 1; i++) {
+        const start = route[i]
+        const end = route[i + 1]
 
-          if (
-            segmentToBoundsMinDistance(start, end, bounds) <= routeSegmentMargin
-          ) {
-            segments.push([start, end])
-            const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
-            if (this.useTraceWidthAwareClearance) {
-              const segmentTraceThickness = Math.max(
-                start.traceThickness ?? hdRoute.traceThickness,
-                end.traceThickness ?? hdRoute.traceThickness,
-              )
-              this.traceThicknessByObstacleSegmentId.set(
-                segmentId,
-                Math.max(
-                  this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
-                  segmentTraceThickness,
-                ),
-              )
-            }
+        if (distanceToRouteBounds(start, end) <= routeSegmentMargin) {
+          segments.push([start, end])
+          const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
+          if (this.useTraceWidthAwareClearance) {
+            const segmentTraceThickness = Math.max(
+              start.traceThickness ?? hdRoute.traceThickness,
+              end.traceThickness ?? hdRoute.traceThickness,
+            )
+            this.traceThicknessByObstacleSegmentId.set(
+              segmentId,
+              Math.max(
+                this.traceThicknessByObstacleSegmentId.get(segmentId) ?? 0,
+                segmentTraceThickness,
+              ),
+            )
           }
         }
+      }
 
-        return segments
-      },
-    )
+      return segments
+    })
     this.segmentTree = this.useTraceWidthAwareClearance
       ? new SegmentTree(this.filteredObstaclePathSegments, routeSegmentMargin)
       : new SegmentTree(this.filteredObstaclePathSegments)
 
-    this.filteredVias = this.otherHdRoutes.flatMap((hdRoute) => {
-      if (this.isSameNetRoute(hdRoute)) {
-        return []
-      }
-
+    this.filteredVias = obstacleRoutes.flatMap((hdRoute) => {
       const vias = hdRoute.vias
       const filteredVias: Array<{ x: number; y: number; diameter: number }> = []
       for (const via of vias) {
@@ -312,11 +297,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     }
 
     // Collect jumper pads from other routes as obstacles
-    this.filteredJumperPads = this.otherHdRoutes.flatMap((hdRoute) => {
-      if (this.isSameNetRoute(hdRoute)) {
-        return []
-      }
-
+    this.filteredJumperPads = obstacleRoutes.flatMap((hdRoute) => {
       return extractJumperPads(hdRoute.jumpers ?? [], hdRoute.connectionName)
     })
 
