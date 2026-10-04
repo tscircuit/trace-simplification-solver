@@ -182,9 +182,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         const start = route[i]
         const end = route[i + 1]
 
-        if (
-          distanceToRouteBounds(start, end) <= routeSegmentMargin
-        ) {
+        if (distanceToRouteBounds(start, end) <= routeSegmentMargin) {
           segments.push([start, end])
           const segmentId = `${start.x}-${start.y}-${start.z}-${end.x}-${end.y}-${end.z}`
           if (this.useTraceWidthAwareClearance) {
