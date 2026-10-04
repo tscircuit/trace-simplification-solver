@@ -150,33 +150,15 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    this.filteredObstacles = this.obstacles
-      .filter(
-        (obstacle) =>
-          !obstacle.connectedTo.some((id) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, id),
-          ),
+    this.filteredObstacles = this.obstacles.filter((obstacle) => {
+      const isConnectedToInputRoute = obstacle.connectedTo.some((id) =>
+        this.connMap.areIdsConnected(this.inputRoute.connectionName, id),
       )
-      .filter((obstacle) => {
-        if (
-          obstacle.connectedTo.some((obsId) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, obsId),
-          )
-        ) {
-          return false
-        }
+      if (isConnectedToInputRoute) return false
 
-        const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-
-        if (
-          distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
-        ) {
-          return true
-        }
-
-        return false
-      })
+      const distance = computeGapBetweenBoxes(boundsBox, obstacle)
+      return distance < this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    })
 
     this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(
       (hdRoute) => {
