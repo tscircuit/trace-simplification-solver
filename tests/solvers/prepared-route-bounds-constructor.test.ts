@@ -114,19 +114,17 @@ test("prepared constructor geometry keeps live changes and order", () => {
       const margin = useTraceWidthAwareClearance
         ? 0.1 + inputRoute.traceThickness / 2 + maximumOtherThickness / 2
         : 0.1 + 0.15
-      const expected: Array<[
-        HighDensityRoute["route"][number],
-        HighDensityRoute["route"][number],
-      ]> = []
+      const expected: Array<
+        [HighDensityRoute["route"][number], HighDensityRoute["route"][number]]
+      > = []
       for (const route of peers) {
         const inputIds = [
           inputRoute.connectionName,
           inputRoute.rootConnectionName,
         ].filter((id): id is string => id !== undefined)
-        const peerIds = [
-          route.connectionName,
-          route.rootConnectionName,
-        ].filter((id): id is string => id !== undefined)
+        const peerIds = [route.connectionName, route.rootConnectionName].filter(
+          (id): id is string => id !== undefined,
+        )
         const sameNet = inputIds.some((inputId) =>
           peerIds.some(
             (peerId) =>

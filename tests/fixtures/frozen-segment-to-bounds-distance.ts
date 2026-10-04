@@ -11,10 +11,7 @@ export interface FrozenBounds {
   maxY: number
 }
 
-function distance(
-  first: FrozenPoint,
-  second: FrozenPoint,
-): number {
+function distance(first: FrozenPoint, second: FrozenPoint): number {
   const dx = first.x - second.x
   const dy = first.y - second.y
   return Math.sqrt(dx * dx + dy * dy)

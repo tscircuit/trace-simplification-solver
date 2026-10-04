@@ -22,7 +22,7 @@ function adjacentFloat(value: number, direction: "up" | "down"): number {
   const view = new DataView(buffer)
   view.setFloat64(0, value)
   let bits = view.getBigUint64(0)
-  bits += (value > 0) === (direction === "up") ? 1n : -1n
+  bits += value > 0 === (direction === "up") ? 1n : -1n
   view.setBigUint64(0, bits)
   return view.getFloat64(0)
 }
