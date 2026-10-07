@@ -76,6 +76,20 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   TAIL_JUMP_RATIO: number = 0.8
 
   private isSameNetRoute(otherRoute: HighDensityIntraNodeRoute): boolean {
+    const inputRouteNet =
+      this.netByConnectionName?.get(this.inputRoute.connectionName) ??
+      (this.inputRoute.rootConnectionName
+        ? this.netByConnectionName?.get(this.inputRoute.rootConnectionName)
+        : undefined)
+    const otherRouteNet =
+      this.netByConnectionName?.get(otherRoute.connectionName) ??
+      (otherRoute.rootConnectionName
+        ? this.netByConnectionName?.get(otherRoute.rootConnectionName)
+        : undefined)
+    if (inputRouteNet !== undefined && otherRouteNet !== undefined) {
+      return inputRouteNet === otherRouteNet
+    }
+
     const inputRouteIds = [
       this.inputRoute.connectionName,
       this.inputRoute.rootConnectionName,
@@ -150,32 +164,30 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    this.filteredObstacles = this.obstacles
-      .filter(
-        (obstacle) =>
-          !obstacle.connectedTo.some((id) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, id),
-          ),
-      )
+    const obstacleSearchMargin =
+      this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    this.filteredObstacles = this.obstacleIndex
+      .search({
+        minX: bounds.minX - obstacleSearchMargin,
+        minY: bounds.minY - obstacleSearchMargin,
+        maxX: bounds.maxX + obstacleSearchMargin,
+        maxY: bounds.maxY + obstacleSearchMargin,
+      })
       .filter((obstacle) => {
         if (
-          obstacle.connectedTo.some((obsId) =>
-            this.connMap.areIdsConnected(this.inputRoute.connectionName, obsId),
+          obstacle.connectedTo.some((connectedId) =>
+            this.connMap.areIdsConnected(
+              this.inputRoute.connectionName,
+              connectedId,
+            ),
           )
         ) {
           return false
         }
 
-        const distance = computeGapBetweenBoxes(boundsBox, obstacle)
-
-        if (
-          distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
-        ) {
-          return true
-        }
-
-        return false
+        return (
+          computeGapBetweenBoxes(boundsBox, obstacle) < obstacleSearchMargin
+        )
       })
 
     this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(

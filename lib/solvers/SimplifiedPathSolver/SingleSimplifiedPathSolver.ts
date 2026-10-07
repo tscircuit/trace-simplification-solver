@@ -4,6 +4,7 @@ import { Obstacle } from "../../types"
 import { calculate45DegreePaths } from "../../utils/calculate45DegreePaths"
 import { GraphicsObject } from "graphics-debug"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
+import { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
 
 interface Point {
   x: number
@@ -25,7 +26,9 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
   inputRoute: HighDensityIntraNodeRoute
   otherHdRoutes: HighDensityIntraNodeRoute[]
   obstacles: Obstacle[]
+  obstacleIndex: ObstacleSpatialHashIndex
   connMap: ConnectivityMap
+  netByConnectionName?: ReadonlyMap<string, string>
   colorMap: Record<string, string>
   outline?: Array<{ x: number; y: number }>
   minBoardEdgeClearance: number
@@ -34,7 +37,9 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
     inputRoute: HighDensityIntraNodeRoute
     otherHdRoutes: HighDensityIntraNodeRoute[]
     obstacles: Obstacle[]
+    obstacleIndex?: ObstacleSpatialHashIndex
     connMap: ConnectivityMap
+    netByConnectionName?: ReadonlyMap<string, string>
     colorMap: Record<string, string>
     outline?: Array<{ x: number; y: number }>
     minBoardEdgeClearance?: number
@@ -44,7 +49,11 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
     this.inputRoute = params.inputRoute
     this.otherHdRoutes = params.otherHdRoutes
     this.obstacles = params.obstacles
+    this.obstacleIndex =
+      params.obstacleIndex ??
+      new ObstacleSpatialHashIndex("flatbush", params.obstacles)
     this.connMap = params.connMap
+    this.netByConnectionName = params.netByConnectionName
     this.colorMap = params.colorMap
     this.outline = params.outline
     this.minBoardEdgeClearance = params.minBoardEdgeClearance ?? 0.2
@@ -59,6 +68,7 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
       otherHdRoutes: this.otherHdRoutes,
       obstacles: this.obstacles,
       connMap: this.connMap.netMap,
+      netByConnectionName: this.netByConnectionName,
       colorMap: this.colorMap,
       outline: this.outline,
       minBoardEdgeClearance: this.minBoardEdgeClearance,

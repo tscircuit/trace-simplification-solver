@@ -8,6 +8,7 @@ import { BaseSolver } from "../BaseSolver"
 import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
+import { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
 
 export class MultiSimplifiedPathSolver extends BaseSolver {
   override getSolverName(): string {
@@ -23,7 +24,9 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
   otherHdRoutes: ReadonlyArray<HighDensityIntraNodeRoute>
   obstacles: Obstacle[]
+  obstacleIndex: ObstacleSpatialHashIndex
   connMap: ConnectivityMap
+  netByConnectionName?: ReadonlyMap<string, string>
   colorMap: Record<string, string>
   outline?: Array<{ x: number; y: number }>
   minBoardEdgeClearance: number
@@ -37,6 +40,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     otherHdRoutes?: ReadonlyArray<HighDensityIntraNodeRoute>
     obstacles: Obstacle[]
     connMap?: ConnectivityMap
+    netByConnectionName?: ReadonlyMap<string, string>
     colorMap?: Record<string, string>
     outline?: Array<{ x: number; y: number }>
     minBoardEdgeClearance?: number
@@ -60,7 +64,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
       params.obstacles,
       inferredLayerCount,
     )
+    this.obstacleIndex = new ObstacleSpatialHashIndex(
+      "flatbush",
+      this.obstacles,
+    )
     this.connMap = params.connMap || new ConnectivityMap({})
+    this.netByConnectionName = params.netByConnectionName
     this.colorMap = params.colorMap || {}
     this.outline = params.outline
     this.minBoardEdgeClearance = params.minBoardEdgeClearance ?? 0.2
@@ -89,7 +98,9 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
             .concat(this.simplifiedHdRoutes),
         ),
         obstacles: this.obstacles,
+        obstacleIndex: this.obstacleIndex,
         connMap: this.connMap,
+        netByConnectionName: this.netByConnectionName,
         colorMap: this.colorMap,
         outline: this.outline,
         minBoardEdgeClearance: this.minBoardEdgeClearance,
@@ -109,7 +120,9 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
           inputRoute: this.activeSubSolver.simplifiedRoute,
           otherHdRoutes: this.activeSubSolver.otherHdRoutes,
           obstacles: this.obstacles,
+          obstacleIndex: this.obstacleIndex,
           connMap: this.connMap,
+          netByConnectionName: this.netByConnectionName,
           colorMap: this.colorMap,
           outline: this.outline,
           minBoardEdgeClearance: this.minBoardEdgeClearance,
