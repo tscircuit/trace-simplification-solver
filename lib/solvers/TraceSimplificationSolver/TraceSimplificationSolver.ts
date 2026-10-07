@@ -425,6 +425,7 @@ export class TraceSimplificationSolver extends BaseSolver {
             otherHdRoutes: [...(this.simplificationConfig.otherHdRoutes ?? [])],
             obstacles: [...this.simplificationConfig.obstacles],
             connMap: this.simplificationConfig.connMap,
+            netByConnectionName: this.simplificationConfig.netByConnectionName,
             colorMap: { ...this.simplificationConfig.colorMap },
             outline: this.simplificationConfig.outline
               ? [...this.simplificationConfig.outline]
