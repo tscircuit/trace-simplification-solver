@@ -9,6 +9,7 @@ import { GraphicsObject } from "graphics-debug"
 import { getJumpersGraphics } from "../../utils/getJumperGraphics"
 import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { CrossingViaReductionSolver } from "../CrossingViaReductionSolver/crossing-via-reduction-solver"
+import { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
 
 type Phase =
   | "via_removal"
@@ -58,6 +59,8 @@ export class TraceSimplificationSolver extends BaseSolver {
       end: HighDensityRoute["route"][number]
     }
   >
+  private readonly multilayerObstacleIndex: ObstacleSpatialHashIndex
+  private readonly obstacleOrder: Map<Obstacle, number>
 
   simplificationPipelineLoops = 0
 
@@ -136,6 +139,21 @@ export class TraceSimplificationSolver extends BaseSolver {
         simplificationConfig.layerCount,
       ),
     }
+    this.obstacleOrder = new Map()
+    for (
+      let obstacleIndex = 0;
+      obstacleIndex < this.simplificationConfig.obstacles.length;
+      obstacleIndex++
+    ) {
+      this.obstacleOrder.set(
+        this.simplificationConfig.obstacles[obstacleIndex]!,
+        obstacleIndex,
+      )
+    }
+    this.multilayerObstacleIndex = new ObstacleSpatialHashIndex(
+      "flatbush",
+      this.simplificationConfig.obstacles.filter(isMultilayerObstacle),
+    )
     this.hdRoutes = this.markThroughObstacleSegments(
       simplificationConfig.hdRoutes,
     )
@@ -228,14 +246,30 @@ export class TraceSimplificationSolver extends BaseSolver {
     )
   }
 
+  private getMultilayerObstaclesAtPoint(point: {
+    x: number
+    y: number
+  }): Obstacle[] {
+    return this.multilayerObstacleIndex
+      .search({
+        minX: point.x - VIA_INSIDE_OBSTACLE_TOLERANCE,
+        minY: point.y - VIA_INSIDE_OBSTACLE_TOLERANCE,
+        maxX: point.x + VIA_INSIDE_OBSTACLE_TOLERANCE,
+        maxY: point.y + VIA_INSIDE_OBSTACLE_TOLERANCE,
+      })
+      .sort(
+        (left, right) =>
+          this.obstacleOrder.get(left)! - this.obstacleOrder.get(right)!,
+      )
+  }
+
   private getSameNetObstacleForSegment(
     route: HighDensityRoute,
     start: { x: number; y: number },
     end: { x: number; y: number },
   ) {
-    return this.simplificationConfig.obstacles.find(
+    return this.getMultilayerObstaclesAtPoint(start).find(
       (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
         this.isSameNetObstacle(route, obstacle) &&
         pointInsideObstacle(start, obstacle) &&
         pointInsideObstacle(end, obstacle),
@@ -246,9 +280,8 @@ export class TraceSimplificationSolver extends BaseSolver {
     route: HighDensityRoute,
     via: { x: number; y: number },
   ) {
-    return this.simplificationConfig.obstacles.some(
+    return this.getMultilayerObstaclesAtPoint(via).some(
       (obstacle) =>
-        isMultilayerObstacle(obstacle) &&
         this.isSameNetObstacle(route, obstacle) &&
         pointInsideObstacle(via, obstacle),
     )
