@@ -9,6 +9,7 @@ import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 import { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
+import { SimplificationRouteObstacleIndex } from "./SimplificationRouteObstacleIndex"
 
 export class MultiSimplifiedPathSolver extends BaseSolver {
   override getSolverName(): string {
@@ -25,6 +26,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   otherHdRoutes: ReadonlyArray<HighDensityIntraNodeRoute>
   obstacles: Obstacle[]
   obstacleIndex: ObstacleSpatialHashIndex
+  simplificationRouteObstacleIndex: SimplificationRouteObstacleIndex
   connMap: ConnectivityMap
   netByConnectionName?: ReadonlyMap<string, string>
   colorMap: Record<string, string>
@@ -68,6 +70,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
       "flatbush",
       this.obstacles,
     )
+    this.simplificationRouteObstacleIndex =
+      new SimplificationRouteObstacleIndex({
+        fixedRoutes: this.otherHdRoutes,
+        routesToSimplify: this.unsimplifiedHdRoutes,
+      })
     this.connMap = params.connMap || new ConnectivityMap({})
     this.netByConnectionName = params.netByConnectionName
     this.colorMap = params.colorMap || {}
@@ -99,6 +106,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         ),
         obstacles: this.obstacles,
         obstacleIndex: this.obstacleIndex,
+        simplificationRouteObstacleIndex: this.simplificationRouteObstacleIndex,
+        currentRouteIndex: this.currentUnsimplifiedHdRouteIndex,
         connMap: this.connMap,
         netByConnectionName: this.netByConnectionName,
         colorMap: this.colorMap,
@@ -130,7 +139,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         })
         return
       }
-      this.simplifiedHdRoutes.push(this.activeSubSolver.simplifiedRoute)
+      const simplifiedRoute = this.activeSubSolver.simplifiedRoute
+      this.simplificationRouteObstacleIndex.replaceRoute({
+        routeIndex: this.currentUnsimplifiedHdRouteIndex - 1,
+        route: simplifiedRoute,
+      })
+      this.simplifiedHdRoutes.push(simplifiedRoute)
       this.activeSubSolver = null
     }
   }
