@@ -37,7 +37,7 @@ const fixture = JSON.parse(
   ).toString("utf8"),
 ) as Pmp22650PathSimplificationFixture
 
-test("reproduces the PMP22650 diagonal layer transition", () => {
+test("preserves PMP22650 layer transitions during path simplification", () => {
   const solver = new SingleSimplifiedPathSolver5({
     inputRoute: fixture.config.inputRoute,
     otherHdRoutes: fixture.config.otherHdRoutes,
@@ -66,7 +66,7 @@ test("reproduces the PMP22650 diagonal layer transition", () => {
       return [{ previousPoint, point }]
     },
   )
-  expect(invalidLayerTransitions).toHaveLength(1)
+  expect(invalidLayerTransitions).toEqual([])
 
   const graphics = solver.visualize()
   const focusBounds = {
