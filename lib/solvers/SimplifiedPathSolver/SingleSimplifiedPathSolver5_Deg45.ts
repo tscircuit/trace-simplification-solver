@@ -41,6 +41,9 @@ interface PathSegment {
   endDistance: number
 }
 
+// Try 4 mm, 1 mm, and 0.25 mm before committing one preserved-route step.
+const MAXIMUM_ATTEMPTS_PER_PROGRESS_STEP = 4
+
 export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   private pathSegments: PathSegment[] = []
   private totalPathLength: number = 0
@@ -428,6 +431,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
     // Compute path segments and total length
     this.computePathSegments()
+    if (this.inputRoute.route.length > this.MAX_ITERATIONS) {
+      this.MAX_ITERATIONS =
+        MAXIMUM_ATTEMPTS_PER_PROGRESS_STEP * this.inputRoute.route.length
+    }
   }
 
   // Compute the path segments and their distances
@@ -807,7 +814,6 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         this.inputRoute.route[i].z !== this.inputRoute.route[i + 1].z
       ) {
         layerChangeBtwHeadAndTail = true
-        // Find the segment with the layer change
         const changeSegmentIndex = i
         layerChangeAtDistance =
           this.pathSegments[changeSegmentIndex].startDistance
@@ -1027,6 +1033,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           newTailIndex === 0
             ? 0
             : this.pathSegments[newTailIndex - 1].endDistance
+        if (this.headDistanceAlongPath < this.tailDistanceAlongPath) {
+          this.headDistanceAlongPath = this.tailDistanceAlongPath
+        }
       }
 
       return
