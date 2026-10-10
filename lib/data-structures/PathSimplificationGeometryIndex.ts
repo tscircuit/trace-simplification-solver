@@ -18,7 +18,7 @@ function roundOutward(value: number, upward: boolean): number {
   if (!Number.isFinite(value)) return value
   if (value === 0) return upward ? Number.MIN_VALUE : -Number.MIN_VALUE
   roundingValue[0] = value
-  roundingBits[0] += (value > 0) === upward ? 1n : -1n
+  roundingBits[0] += value > 0 === upward ? 1n : -1n
   return roundingValue[0]
 }
 
@@ -79,7 +79,8 @@ function getIndexedRoute(
     for (const point of [jumper.start, jumper.end]) {
       const padBounds = expandBoundsOutward(
         { minX: point.x, minY: point.y, maxX: point.x, maxY: point.y },
-        halfWidth, halfHeight,
+        halfWidth,
+        halfHeight,
       )
       bounds.minX = Math.min(bounds.minX, padBounds.minX)
       bounds.minY = Math.min(bounds.minY, padBounds.minY)
@@ -87,13 +88,25 @@ function getIndexedRoute(
       bounds.maxY = Math.max(bounds.maxY, padBounds.maxY)
     }
   }
-  if (route.route.length === 0 && route.vias.length === 0 && !route.jumpers?.length) return undefined
-  if (![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)) {
+  if (
+    route.route.length === 0 &&
+    route.vias.length === 0 &&
+    !route.jumpers?.length
+  )
+    return undefined
+  if (
+    ![bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].every(Number.isFinite)
+  ) {
     // A partly nonfinite route can still contain finite segments or vias.
     // Its original predicates must run; no finite broad phase can exclude it.
     return {
-      minX: -Infinity, minY: -Infinity, maxX: Infinity, maxY: Infinity,
-      route, routeIndex, immutable,
+      minX: -Infinity,
+      minY: -Infinity,
+      maxX: Infinity,
+      maxY: Infinity,
+      route,
+      routeIndex,
+      immutable,
     }
   }
   return { ...expandBoundsOutward(bounds, 0), route, routeIndex, immutable }
@@ -115,11 +128,10 @@ export class PathSimplificationGeometryIndex {
     this.mutableRoutes = routes.map((route, index) =>
       getIndexedRoute(route, index, false),
     )
-    const indexedRoutes = immutableRoutes.map((route, index) =>
-      getIndexedRoute(route, index, true),
-    ).concat(this.mutableRoutes).filter(
-      (route): route is IndexedRoute => route !== undefined,
-    )
+    const indexedRoutes = immutableRoutes
+      .map((route, index) => getIndexedRoute(route, index, true))
+      .concat(this.mutableRoutes)
+      .filter((route): route is IndexedRoute => route !== undefined)
     this.routeIndex.load(indexedRoutes)
     const obstacleBounds = obstacles.map((obstacle, index): Bounds => {
       const bounds = {
@@ -128,7 +140,8 @@ export class PathSimplificationGeometryIndex {
         maxX: obstacle.center.x + obstacle.width / 2,
         maxY: obstacle.center.y + obstacle.height / 2,
       }
-      if (Object.values(bounds).every(Number.isFinite)) this.indexedObstacleIds.push(index)
+      if (Object.values(bounds).every(Number.isFinite))
+        this.indexedObstacleIds.push(index)
       else this.unindexedObstacleIds.push(index)
       return bounds
     })
@@ -136,23 +149,34 @@ export class PathSimplificationGeometryIndex {
       this.obstacleIndex = new Flatbush(this.indexedObstacleIds.length)
       for (const index of this.indexedObstacleIds) {
         const bounds = obstacleBounds[index]
-        this.obstacleIndex.add(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY)
+        this.obstacleIndex.add(
+          bounds.minX,
+          bounds.minY,
+          bounds.maxX,
+          bounds.maxY,
+        )
       }
       this.obstacleIndex.finish()
     }
   }
 
   getCandidateObstacles(bounds: Bounds, margin: number): Obstacle[] {
-    if (!Number.isFinite(margin) || !Object.values(bounds).every(Number.isFinite)) {
+    if (
+      !Number.isFinite(margin) ||
+      !Object.values(bounds).every(Number.isFinite)
+    ) {
       return [...this.obstacles]
     }
     const query = expandBoundsOutward(bounds, Math.max(0, margin))
     const indices = this.obstacleIndex
-      ? this.obstacleIndex.search(query.minX, query.minY, query.maxX, query.maxY)
+      ? this.obstacleIndex
+          .search(query.minX, query.minY, query.maxX, query.maxY)
           .map((index) => this.indexedObstacleIds[index])
       : []
-    return indices.concat(this.unindexedObstacleIds)
-      .sort((a, b) => a - b).map((index) => this.obstacles[index])
+    return indices
+      .concat(this.unindexedObstacleIds)
+      .sort((a, b) => a - b)
+      .map((index) => this.obstacles[index])
   }
 
   getCandidateRoutes(
@@ -160,23 +184,38 @@ export class PathSimplificationGeometryIndex {
     margin: number,
     currentRouteIndex: number,
   ): HighDensityRoute[] {
-    const finiteQuery = Number.isFinite(margin) && Object.values(bounds).every(Number.isFinite)
+    const finiteQuery =
+      Number.isFinite(margin) && Object.values(bounds).every(Number.isFinite)
     const candidates = finiteQuery
       ? this.routeIndex.search(expandBoundsOutward(bounds, Math.max(0, margin)))
       : this.routeIndex.all()
     return candidates
-      .filter((route) => route.immutable || route.routeIndex !== currentRouteIndex)
+      .filter(
+        (route) => route.immutable || route.routeIndex !== currentRouteIndex,
+      )
       .sort((a, b) => {
         // Match immutable + remaining original + already simplified order.
-        const aGroup = a.immutable ? 0 : a.routeIndex > currentRouteIndex ? 1 : 2
-        const bGroup = b.immutable ? 0 : b.routeIndex > currentRouteIndex ? 1 : 2
+        const aGroup = a.immutable
+          ? 0
+          : a.routeIndex > currentRouteIndex
+            ? 1
+            : 2
+        const bGroup = b.immutable
+          ? 0
+          : b.routeIndex > currentRouteIndex
+            ? 1
+            : 2
         return aGroup - bGroup || a.routeIndex - b.routeIndex
       })
       .map((route) => route.route)
   }
 
   replaceRoute(routeIndex: number, route: HighDensityRoute): void {
-    if (!Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= this.mutableRoutes.length) {
+    if (
+      !Number.isInteger(routeIndex) ||
+      routeIndex < 0 ||
+      routeIndex >= this.mutableRoutes.length
+    ) {
       throw new Error(`Cannot replace path simplification route ${routeIndex}`)
     }
     const previous = this.mutableRoutes[routeIndex]

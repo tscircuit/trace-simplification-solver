@@ -20,9 +20,14 @@ test("shared indexes preserve sequential path and vertex simplification outputs"
     ],
   }))
   const immutableRoute: HighDensityRoute = {
-    connectionName: "immutable", traceThickness: 0.7, viaDiameter: 1,
+    connectionName: "immutable",
+    traceThickness: 0.7,
+    viaDiameter: 1,
     vias: [{ x: 1.5, y: 7.5 }],
-    route: [{ x: 1.5, y: 6.5, z: 0 }, { x: 1.5, y: 8.5, z: 0 }],
+    route: [
+      { x: 1.5, y: 6.5, z: 0 },
+      { x: 1.5, y: 8.5, z: 0 },
+    ],
   }
   const connMap = new ConnectivityMap({})
   for (const useTraceWidthAwareClearance of [false, true]) {
@@ -31,13 +36,23 @@ test("shared indexes preserve sequential path and vertex simplification outputs"
       for (let index = 0; index < routes.length; index++) {
         const params = {
           inputRoute: routes[index],
-          otherHdRoutes: [immutableRoute, ...routes.slice(index + 1), ...expected],
-          obstacles: [], connMap, colorMap: {}, useTraceWidthAwareClearance,
+          otherHdRoutes: [
+            immutableRoute,
+            ...routes.slice(index + 1),
+            ...expected,
+          ],
+          obstacles: [],
+          connMap,
+          colorMap: {},
+          useTraceWidthAwareClearance,
         }
         const single = new SingleSimplifiedPathSolver5(params)
         single.solve()
         if (enableVertexShortcuts) {
-          const vertex = new VertexShortcutPathSolver({ ...params, inputRoute: single.simplifiedRoute })
+          const vertex = new VertexShortcutPathSolver({
+            ...params,
+            inputRoute: single.simplifiedRoute,
+          })
           vertex.solve()
           expected.push(vertex.simplifiedRoute)
         } else {
@@ -45,14 +60,24 @@ test("shared indexes preserve sequential path and vertex simplification outputs"
         }
       }
       const indexed = new MultiSimplifiedPathSolver({
-        unsimplifiedHdRoutes: structuredClone(routes), otherHdRoutes: [immutableRoute],
-        obstacles: [], connMap, colorMap: {}, useTraceWidthAwareClearance, enableVertexShortcuts,
+        unsimplifiedHdRoutes: structuredClone(routes),
+        otherHdRoutes: [immutableRoute],
+        obstacles: [],
+        connMap,
+        colorMap: {},
+        useTraceWidthAwareClearance,
+        enableVertexShortcuts,
       })
       indexed.solve()
       expect(indexed.solved).toBe(true)
       expect(indexed.simplifiedHdRoutes).toEqual(expected)
-      expect(indexed.simplifiedHdRoutes[0].route.length).toBeLessThan(routes[0].route.length)
-      expect(immutableRoute.route).toEqual([{ x: 1.5, y: 6.5, z: 0 }, { x: 1.5, y: 8.5, z: 0 }])
+      expect(indexed.simplifiedHdRoutes[0].route.length).toBeLessThan(
+        routes[0].route.length,
+      )
+      expect(immutableRoute.route).toEqual([
+        { x: 1.5, y: 6.5, z: 0 },
+        { x: 1.5, y: 8.5, z: 0 },
+      ])
     }
   }
 })
