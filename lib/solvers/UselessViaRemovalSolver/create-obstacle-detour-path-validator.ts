@@ -125,6 +125,8 @@ export const createObstacleDetourPathValidator = ({
       )
 
       for (const obstacle of obstacles) {
+        if (!obstacle.__zLayers?.includes(targetZ)) continue
+
         let obstacleIsSameNet = obstacleIsSameNetCache.get(obstacle)
         if (obstacleIsSameNet === undefined) {
           obstacleIsSameNet = obstacle.connectedTo.some(isConnectedToRoute)
