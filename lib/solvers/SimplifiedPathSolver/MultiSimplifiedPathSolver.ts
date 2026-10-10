@@ -8,6 +8,7 @@ import { BaseSolver } from "../BaseSolver"
 import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
+import { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
 
 export class MultiSimplifiedPathSolver extends BaseSolver {
   override getSolverName(): string {
@@ -30,6 +31,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   defaultViaDiameter: number
   useTraceWidthAwareClearance: boolean
   enableVertexShortcuts: boolean
+  private readonly geometryIndex: PathSimplificationGeometryIndex
 
   constructor(params: {
     unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
@@ -68,6 +70,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.useTraceWidthAwareClearance =
       params.useTraceWidthAwareClearance ?? false
     this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
+    this.geometryIndex = new PathSimplificationGeometryIndex(
+      this.unsimplifiedHdRoutes,
+      this.otherHdRoutes,
+      this.obstacles,
+    )
 
     this.simplifiedHdRoutes = []
   }
@@ -94,6 +101,10 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         outline: this.outline,
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
+        geometryQuery: {
+          index: this.geometryIndex,
+          routeIndex: this.currentUnsimplifiedHdRouteIndex,
+        },
       })
       this.currentUnsimplifiedHdRouteIndex++
       return
@@ -114,10 +125,19 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
           outline: this.outline,
           minBoardEdgeClearance: this.minBoardEdgeClearance,
           useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
+          geometryQuery: {
+            index: this.geometryIndex,
+            routeIndex: this.currentUnsimplifiedHdRouteIndex - 1,
+          },
         })
         return
       }
-      this.simplifiedHdRoutes.push(this.activeSubSolver.simplifiedRoute)
+      const simplifiedRoute = this.activeSubSolver.simplifiedRoute
+      this.geometryIndex.replaceRoute(
+        this.currentUnsimplifiedHdRouteIndex - 1,
+        simplifiedRoute,
+      )
+      this.simplifiedHdRoutes.push(simplifiedRoute)
       this.activeSubSolver = null
     }
   }
