@@ -20,6 +20,7 @@ import {
 } from "@tscircuit/math-utils"
 import { doesSegmentCrossPolygonBoundary } from "../../utils/polygonContainment"
 import { JUMPER_DIMENSIONS } from "../../utils/jumperSizes"
+import type { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
 
 interface Point {
   x: number
@@ -97,6 +98,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   constructor(
     params: ConstructorParameters<typeof SingleSimplifiedPathSolver>[0] & {
       useTraceWidthAwareClearance?: boolean
+      geometryQuery?: {
+        index: PathSimplificationGeometryIndex
+        routeIndex: number
+      }
     },
   ) {
     super(params)
@@ -150,7 +155,24 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    this.filteredObstacles = this.obstacles
+    const obstacleMargin = this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    const candidateObstacles = params.geometryQuery
+      ? params.geometryQuery.index.getCandidateObstacles({
+          minX: boundsBox.center.x - boundsBox.width / 2,
+          minY: boundsBox.center.y - boundsBox.height / 2,
+          maxX: boundsBox.center.x + boundsBox.width / 2,
+          maxY: boundsBox.center.y + boundsBox.height / 2,
+        }, obstacleMargin)
+      : this.obstacles
+    const candidateRoutes = params.geometryQuery
+      ? params.geometryQuery.index.getCandidateRoutes(
+          bounds,
+          Math.max(routeSegmentMargin, obstacleMargin),
+          params.geometryQuery.routeIndex,
+        )
+      : this.otherHdRoutes
+
+    this.filteredObstacles = candidateObstacles
       .filter(
         (obstacle) =>
           !obstacle.connectedTo.some((id) =>
@@ -178,7 +200,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         return false
       })
 
-    this.filteredObstaclePathSegments = this.otherHdRoutes.flatMap(
+    this.filteredObstaclePathSegments = candidateRoutes.flatMap(
       (hdRoute) => {
         if (this.isSameNetRoute(hdRoute)) {
           return []
@@ -218,7 +240,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       ? new SegmentTree(this.filteredObstaclePathSegments, routeSegmentMargin)
       : new SegmentTree(this.filteredObstaclePathSegments)
 
-    this.filteredVias = this.otherHdRoutes.flatMap((hdRoute) => {
+    this.filteredVias = candidateRoutes.flatMap((hdRoute) => {
       if (this.isSameNetRoute(hdRoute)) {
         return []
       }
@@ -312,7 +334,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     }
 
     // Collect jumper pads from other routes as obstacles
-    this.filteredJumperPads = this.otherHdRoutes.flatMap((hdRoute) => {
+    this.filteredJumperPads = candidateRoutes.flatMap((hdRoute) => {
       if (this.isSameNetRoute(hdRoute)) {
         return []
       }
