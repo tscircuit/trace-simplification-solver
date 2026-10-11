@@ -1,7 +1,7 @@
 import type { ConnectivityMap } from "circuit-json-to-connectivity-map"
-import { GraphicsObject } from "graphics-debug"
-import { HighDensityRouteSpatialIndex } from "../../data-structures/HighDensityRouteSpatialIndex"
-import { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
+import type { GraphicsObject } from "graphics-debug"
+import type { HighDensityRouteSpatialIndex } from "../../data-structures/HighDensityRouteSpatialIndex"
+import type { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
 import type { HighDensityRoute } from "../../types/high-density-types"
 import { calculate45DegreePaths } from "../../utils/calculate45DegreePaths"
 import { getVectorLength } from "../../utils/getVectorLength"
@@ -225,69 +225,85 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     return paths
   }
 
+  private getViaPairAnchorIndexes(
+    previousSection: RouteSection,
+    nextSection: RouteSection,
+  ): Array<[number, number]> {
+    const previousTransitionIndex = previousSection.points.length - 1
+    const anchorIndexes: Array<[number, number]> = []
+    for (
+      let previousPointIndex = 0;
+      previousPointIndex <= previousTransitionIndex;
+      previousPointIndex++
+    ) {
+      anchorIndexes.push([previousPointIndex, 0])
+    }
+    for (
+      let nextPointIndex = 1;
+      nextPointIndex < nextSection.points.length;
+      nextPointIndex++
+    ) {
+      anchorIndexes.push([previousTransitionIndex, nextPointIndex])
+    }
+    return anchorIndexes
+  }
+
   private getDirectGeometryShortcut(
     previousSection: RouteSection,
     currentSection: RouteSection,
     nextSection: RouteSection,
   ): ViaPairShortcut | null {
     let bestShortcut: ViaPairShortcut | null = null
-    for (
-      let previousPointIndex = 0;
-      previousPointIndex < previousSection.points.length;
-      previousPointIndex++
-    ) {
+    for (const [
+      previousPointIndex,
+      nextPointIndex,
+    ] of this.getViaPairAnchorIndexes(previousSection, nextSection)) {
       const start = previousSection.points[previousPointIndex]
-      for (
-        let nextPointIndex = 0;
-        nextPointIndex < nextSection.points.length;
-        nextPointIndex++
+      const end = nextSection.points[nextPointIndex]
+      const replacedPoints = [
+        ...previousSection.points.slice(previousPointIndex),
+        ...currentSection.points,
+        ...nextSection.points.slice(0, nextPointIndex + 1),
+      ]
+      if (
+        replacedPoints.some(
+          (point) => point.insideJumperPad || point.toNextSegmentType,
+        )
       ) {
-        const end = nextSection.points[nextPointIndex]
-        const replacedPoints = [
-          ...previousSection.points.slice(previousPointIndex),
-          ...currentSection.points,
-          ...nextSection.points.slice(0, nextPointIndex + 1),
-        ]
-        if (
-          replacedPoints.some(
-            (point) => point.insideJumperPad || point.toNextSegmentType,
-          )
-        ) {
-          continue
+        continue
+      }
+
+      for (const possiblePath of calculate45DegreePaths(start, end)) {
+        const path = this.normalizeShortcutPath(possiblePath, start, end)
+        const savedLength =
+          this.getPathLength(replacedPoints) - this.getPathLength(path)
+        if (savedLength < -1e-6 || this.shortcutCrossesOutline(path)) continue
+
+        const candidateSection: RouteSection = {
+          startIndex: previousSection.startIndex + previousPointIndex,
+          endIndex: nextSection.startIndex + nextPointIndex,
+          z: previousSection.z,
+          points: path,
         }
+        const pathIsClear = canSectionMoveToLayer({
+          currentSection: candidateSection,
+          targetZ: previousSection.z,
+          route: this.unsimplifiedRoute,
+          hdRouteSHI: this.hdRouteSHI,
+          obstacleSHI: this.obstacleSHI,
+          connMap: this.connMap,
+          defaultTraceThickness: this.TRACE_THICKNESS,
+          obstacleMargin: this.GEOMETRY_SHORTCUT_OBSTACLE_MARGIN,
+          traceMargin: this.GEOMETRY_SHORTCUT_TRACE_MARGIN,
+        })
+        if (!pathIsClear) continue
 
-        for (const possiblePath of calculate45DegreePaths(start, end)) {
-          const path = this.normalizeShortcutPath(possiblePath, start, end)
-          const savedLength =
-            this.getPathLength(replacedPoints) - this.getPathLength(path)
-          if (savedLength < -1e-6 || this.shortcutCrossesOutline(path)) continue
-
-          const candidateSection: RouteSection = {
-            startIndex: previousSection.startIndex + previousPointIndex,
-            endIndex: nextSection.startIndex + nextPointIndex,
-            z: previousSection.z,
-            points: path,
-          }
-          const pathIsClear = canSectionMoveToLayer({
-            currentSection: candidateSection,
-            targetZ: previousSection.z,
-            route: this.unsimplifiedRoute,
-            hdRouteSHI: this.hdRouteSHI,
-            obstacleSHI: this.obstacleSHI,
-            connMap: this.connMap,
-            defaultTraceThickness: this.TRACE_THICKNESS,
-            obstacleMargin: this.GEOMETRY_SHORTCUT_OBSTACLE_MARGIN,
-            traceMargin: this.GEOMETRY_SHORTCUT_TRACE_MARGIN,
-          })
-          if (!pathIsClear) continue
-
-          if (!bestShortcut || savedLength > bestShortcut.savedLength) {
-            bestShortcut = {
-              path,
-              previousPointIndex,
-              nextPointIndex,
-              savedLength,
-            }
+        if (!bestShortcut || savedLength > bestShortcut.savedLength) {
+          bestShortcut = {
+            path,
+            previousPointIndex,
+            nextPointIndex,
+            savedLength,
           }
         }
       }
@@ -300,27 +316,11 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     currentSection: RouteSection,
     nextSection: RouteSection,
   ): ViaPairShortcut | null {
-    const transitionIndex = previousSection.points.length - 1
-    const anchorPairs: Array<[number, number]> = []
-    // Keep one anchor at a layer transition so candidate growth is P + N,
-    // rather than the quadratic P * N direct-shortcut search above.
-    for (
-      let previousIndex = 0;
-      previousIndex <= transitionIndex;
-      previousIndex++
-    ) {
-      anchorPairs.push([previousIndex, 0])
-    }
-    for (
-      let nextIndex = 1;
-      nextIndex < nextSection.points.length;
-      nextIndex++
-    ) {
-      anchorPairs.push([transitionIndex, nextIndex])
-    }
-
     const candidateShortcuts: ViaPairShortcut[] = []
-    for (const [previousPointIndex, nextPointIndex] of anchorPairs) {
+    for (const [
+      previousPointIndex,
+      nextPointIndex,
+    ] of this.getViaPairAnchorIndexes(previousSection, nextSection)) {
       const start = previousSection.points[previousPointIndex]
       const end = nextSection.points[nextPointIndex]
       const replacedPoints = [

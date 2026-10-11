@@ -36,7 +36,7 @@ const fixture = JSON.parse(
   ).toString("utf8"),
 ) as Pmp22650ViaPairFixture
 
-test("reproduces the dense PMP22650 via-pair search", () => {
+test("removes a via pair from the dense PMP22650 route", () => {
   const connectionName = "source_net_altium_pcb_289"
   const inputRoute = fixture.config.otherHdRoutes.find(
     (route) => route.connectionName === connectionName,
@@ -68,6 +68,11 @@ test("reproduces the dense PMP22650 via-pair search", () => {
     outline: fixture.config.outline,
     enableObstacleDetourShortcuts: true,
   })
+
+  solver.solve()
+
+  expect(solver.failed).toBeFalse()
+  expect(solver.solved).toBeTrue()
 
   const graphics = solver.visualize()
   const focusBounds = {
