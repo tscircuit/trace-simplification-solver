@@ -58,7 +58,7 @@ const platedHoleObstacle: Obstacle = {
   ],
 }
 
-test("reproduces the dropped PMP22650 plated-hole transition", () => {
+test("preserves the explicit PMP22650 plated-hole transition", () => {
   const solver = new TraceSimplificationSolver({
     hdRoutes: [route],
     obstacles: [platedHoleObstacle],
@@ -69,7 +69,7 @@ test("reproduces the dropped PMP22650 plated-hole transition", () => {
   })
   const transition = solver.hdRoutes[0].route[0]
 
-  expect(transition.toNextSegmentType).toBeUndefined()
+  expect(transition.toNextSegmentType).toBe("through_obstacle")
 
   expect(
     getSvgFromGraphicsObject(
