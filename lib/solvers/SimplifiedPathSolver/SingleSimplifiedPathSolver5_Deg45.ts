@@ -981,6 +981,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           newTailIndex === 0
             ? 0
             : this.pathSegments[newTailIndex - 1].endDistance
+        // Keep the sampling window ordered after advancing to a preserved
+        // route vertex.
+        this.headDistanceAlongPath = Math.max(
+          this.headDistanceAlongPath,
+          this.tailDistanceAlongPath,
+        )
       }
 
       return
