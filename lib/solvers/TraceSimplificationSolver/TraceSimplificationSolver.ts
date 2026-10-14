@@ -16,16 +16,18 @@ type Phase =
   | "via_merging"
   | "path_simplification"
 
-const VIA_INSIDE_OBSTACLE_TOLERANCE = 1e-6
+const PRESERVED_ENDPOINT_TOLERANCE = 1e-6
+const ROUTE_COORDINATE_RESOLUTION = 0.001
+const ROUTE_POINT_OBSTACLE_TOLERANCE = ROUTE_COORDINATE_RESOLUTION / 2
 
 const pointInsideObstacle = (
   point: { x: number; y: number },
   obstacle: Obstacle,
 ) =>
   Math.abs(point.x - obstacle.center.x) <=
-    obstacle.width / 2 + VIA_INSIDE_OBSTACLE_TOLERANCE &&
+    obstacle.width / 2 + ROUTE_POINT_OBSTACLE_TOLERANCE &&
   Math.abs(point.y - obstacle.center.y) <=
-    obstacle.height / 2 + VIA_INSIDE_OBSTACLE_TOLERANCE
+    obstacle.height / 2 + ROUTE_POINT_OBSTACLE_TOLERANCE
 
 const isMultilayerObstacle = (obstacle: Obstacle) =>
   (obstacle.__zLayers?.length ?? obstacle.layers?.length ?? 0) > 1
@@ -184,8 +186,8 @@ export class TraceSimplificationSolver extends BaseSolver {
       left: HighDensityRoute["route"][number],
       right: HighDensityRoute["route"][number],
     ) =>
-      Math.abs(left.x - right.x) <= VIA_INSIDE_OBSTACLE_TOLERANCE &&
-      Math.abs(left.y - right.y) <= VIA_INSIDE_OBSTACLE_TOLERANCE &&
+      Math.abs(left.x - right.x) <= PRESERVED_ENDPOINT_TOLERANCE &&
+      Math.abs(left.y - right.y) <= PRESERVED_ENDPOINT_TOLERANCE &&
       left.z === right.z
 
     for (const route of routes) {

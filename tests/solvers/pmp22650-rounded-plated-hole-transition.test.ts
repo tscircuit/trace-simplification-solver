@@ -59,7 +59,7 @@ test("reproduces the rounded PMP22650 plated-hole transition", () => {
   })
   const transition = solver.hdRoutes[0].route[0]
 
-  expect(transition.toNextSegmentType).toBeUndefined()
+  expect(transition.toNextSegmentType).toBe("through_obstacle")
 
   expect(
     getSvgFromGraphicsObject(
