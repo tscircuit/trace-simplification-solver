@@ -153,7 +153,7 @@ export class SingleSimplifiedPathSolver extends BaseSolver {
     for (const via of this.newVias) {
       graphics.circles.push({
         center: via,
-        radius: this.inputRoute.viaDiameter / 2,
+        radius: (via.diameter ?? this.inputRoute.viaDiameter) / 2,
         fill: "rgba(0, 0, 255, 0.5)",
       })
     }
