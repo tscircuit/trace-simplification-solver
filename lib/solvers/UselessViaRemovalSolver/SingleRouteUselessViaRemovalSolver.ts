@@ -51,6 +51,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
   unsimplifiedRoute: HighDensityRoute
   connMap: ConnectivityMap
   outline?: Array<{ x: number; y: number }>
+  minBoardEdgeClearance?: number
   terminalLayerIndicesByPcbPortId?: ReadonlyMap<string, ReadonlySet<number>>
 
   routeSections: Array<RouteSection>
@@ -82,6 +83,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     unsimplifiedRoute: HighDensityRoute
     connMap: ConnectivityMap
     outline?: Array<{ x: number; y: number }>
+    minBoardEdgeClearance?: number
     geometryShortcutTraceMargin?: number
     geometryShortcutObstacleMargin?: number
     enableGeometryShortcuts?: boolean
@@ -97,6 +99,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     this.unsimplifiedRoute = params.unsimplifiedRoute
     this.connMap = params.connMap
     this.outline = params.outline
+    this.minBoardEdgeClearance = params.minBoardEdgeClearance
     this.terminalLayerIndicesByPcbPortId =
       params.terminalLayerIndicesByPcbPortId
     this.GEOMETRY_SHORTCUT_TRACE_MARGIN =
@@ -154,6 +157,17 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
           start: path[index - 1],
           end: path[index],
           polygon: this.outline,
+          margin:
+            this.minBoardEdgeClearance === undefined
+              ? undefined
+              : this.minBoardEdgeClearance +
+                Math.max(
+                  path[index - 1].traceThickness ??
+                    this.unsimplifiedRoute.traceThickness,
+                  path[index].traceThickness ??
+                    this.unsimplifiedRoute.traceThickness,
+                ) /
+                  2,
         })
       ) {
         return true
@@ -890,6 +904,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
       unsimplifiedRoute: this.unsimplifiedRoute,
       connMap: this.connMap,
       outline: this.outline,
+      minBoardEdgeClearance: this.minBoardEdgeClearance,
       geometryShortcutTraceMargin: this.GEOMETRY_SHORTCUT_TRACE_MARGIN,
       geometryShortcutObstacleMargin: this.GEOMETRY_SHORTCUT_OBSTACLE_MARGIN,
       enableGeometryShortcuts: this.ENABLE_GEOMETRY_SHORTCUTS,
