@@ -179,7 +179,7 @@ export class UselessViaRemovalSolver extends BaseSolver {
       for (const via of route.vias) {
         visualization.circles.push({
           center: { x: via.x, y: via.y },
-          radius: route.viaDiameter / 2,
+          radius: (via.diameter ?? route.viaDiameter) / 2,
           fill: "rgba(255, 0, 255, 0.5)",
           label: `${route.connectionName} via`,
         })

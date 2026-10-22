@@ -59,7 +59,7 @@ function getIndexedRoute(
   for (const via of route.vias) {
     const viaBounds = expandBoundsOutward(
       { minX: via.x, minY: via.y, maxX: via.x, maxY: via.y },
-      Math.abs(route.viaDiameter / 2),
+      Math.abs((via.diameter ?? route.viaDiameter) / 2),
     )
     bounds.minX = Math.min(bounds.minX, viaBounds.minX)
     bounds.minY = Math.min(bounds.minY, viaBounds.minY)

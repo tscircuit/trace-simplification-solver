@@ -31,6 +31,7 @@ type Via = {
   x: number
   y: number
   diameter: number
+  holeDiameter?: number
   net: string
   routeIndex: number
   layers: number[]
@@ -305,7 +306,8 @@ export class SameNetViaMergerSolver extends BaseSolver {
         const via: Via = {
           x: viaPoint.x,
           y: viaPoint.y,
-          diameter: route.viaDiameter,
+          diameter: viaPoint.diameter ?? route.viaDiameter,
+          holeDiameter: viaPoint.holeDiameter,
           net,
           layers,
           routeIndex,
@@ -398,6 +400,12 @@ export class SameNetViaMergerSolver extends BaseSolver {
 
               const candidate = viasInNet[candidateIndex]
               if (!candidate.mutable) continue
+              if (
+                candidate.diameter !== keep.diameter ||
+                candidate.holeDiameter !== keep.holeDiameter
+              ) {
+                continue
+              }
 
               const pairDx = keep.x - candidate.x
               const pairDy = keep.y - candidate.y
@@ -548,7 +556,7 @@ export class SameNetViaMergerSolver extends BaseSolver {
     routeToUpdate.vias = routeToUpdate.vias.map((vx) => {
       if (vx.x !== viaToRemove.x || vx.y !== viaToRemove.y) return vx
       replacedVia = true
-      return { x: viaKeep.x, y: viaKeep.y }
+      return { ...vx, x: viaKeep.x, y: viaKeep.y }
     })
     if (!replacedVia) {
       throw new Error(
@@ -663,7 +671,7 @@ export class SameNetViaMergerSolver extends BaseSolver {
       for (const via of route.vias) {
         visualization.circles.push({
           center: { x: via.x, y: via.y },
-          radius: route.viaDiameter / 2,
+          radius: (via.diameter ?? route.viaDiameter) / 2,
           fill: "rgba(255, 0, 255, 0.5)",
           label: `${route.connectionName} via`,
         })

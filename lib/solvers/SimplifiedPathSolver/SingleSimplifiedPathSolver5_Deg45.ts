@@ -1,3 +1,4 @@
+import { getViaAtPointOrThrow } from "../../utils/getViaAtPointOrThrow"
 import {
   doSegmentsIntersect,
   pointToSegmentDistance,
@@ -253,7 +254,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         const margin =
           this.OBSTACLE_MARGIN +
           this.clearanceTraceThickness / 2 +
-          hdRoute.viaDiameter / 2
+          (via.diameter ?? hdRoute.viaDiameter) / 2
         const minX = via.x - margin
         const maxX = via.x + margin
         const minY = via.y - margin
@@ -265,7 +266,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           minY <= bounds.maxY &&
           maxY >= bounds.minY
         ) {
-          filteredVias.push({ ...via, diameter: hdRoute.viaDiameter })
+          filteredVias.push({
+            ...via,
+            diameter: via.diameter ?? hdRoute.viaDiameter,
+          })
         }
       }
       return filteredVias
@@ -843,7 +847,16 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       const indexAfterLayerChange =
         this.getNearestIndexForDistance(layerChangeAtDistance) + 1
       const pointAfterChange = this.inputRoute.route[indexAfterLayerChange]
-      const viaLocation = { x: pointAfterChange.x, y: pointAfterChange.y }
+      const pointBeforeChange = this.inputRoute.route[indexAfterLayerChange - 1]
+      const throughObstacle =
+        pointBeforeChange.toNextSegmentType === "through_obstacle"
+      const viaLocation = {
+        ...(!throughObstacle
+          ? getViaAtPointOrThrow(this.inputRoute.vias, pointAfterChange)
+          : {}),
+        x: pointAfterChange.x,
+        y: pointAfterChange.y,
+      }
 
       // 1. Add the last valid path found *before* the layer change.
       if (this.lastValidPath) {
@@ -856,8 +869,8 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       // the original geometry up to the via.
       const lastPointInNewRoute = this.newRoute[this.newRoute.length - 1]
       const viaPointOnLeavingLayer = {
-        x: viaLocation.x,
-        y: viaLocation.y,
+        x: pointBeforeChange.x,
+        y: pointBeforeChange.y,
         z: lastPointInNewRoute.z,
       }
 
@@ -878,7 +891,14 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       }
 
       // 3. Add the via itself.
-      this.newVias.push(viaLocation)
+      if (throughObstacle) {
+        const leavingPoint = this.newRoute[this.newRoute.length - 1]
+        leavingPoint.toNextSegmentType = pointBeforeChange.toNextSegmentType
+        leavingPoint.toNextSegmentCircuitJsonMetadata =
+          pointBeforeChange.toNextSegmentCircuitJsonMetadata
+      } else {
+        this.newVias.push(viaLocation)
+      }
 
       // 4. Add the point *after* the layer change, starting the segment on the *new* layer.
       // Ensure this point also uses the precise via location and the *new* Z coordinate.

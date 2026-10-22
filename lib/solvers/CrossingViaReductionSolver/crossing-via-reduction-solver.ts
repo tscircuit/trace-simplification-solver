@@ -1,3 +1,5 @@
+import { getViaAtPointOrThrow } from "../../utils/getViaAtPointOrThrow"
+import { getMaximumViaDiameter } from "../../utils/getMaximumViaDiameter"
 import {
   getSegmentIntersection,
   pointToSegmentDistance,
@@ -125,6 +127,7 @@ const removeConsecutiveDuplicatePoints = (
 
 const recomputeVias = (
   route: ReadonlyArray<RoutePoint>,
+  originalVias: HighDensityRoute["vias"],
 ): HighDensityRoute["vias"] => {
   const vias: HighDensityRoute["vias"] = []
   const seenLocations = new Set<string>()
@@ -142,7 +145,11 @@ const recomputeVias = (
     const key = `${point.x}:${point.y}`
     if (seenLocations.has(key)) continue
     seenLocations.add(key)
-    vias.push({ x: point.x, y: point.y })
+    vias.push({
+      ...getViaAtPointOrThrow(originalVias, point),
+      x: point.x,
+      y: point.y,
+    })
   }
   return vias
 }
@@ -319,6 +326,8 @@ const getTransitionAdjacentZ = ({
     side === "start"
       ? adjacentSection.points.at(-1)!
       : adjacentSection.points[0]
+  const transitionStart = side === "start" ? adjacentPoint : sectionPoint
+  if (transitionStart.toNextSegmentType === "through_obstacle") return null
   if (
     sectionPoint.x !== adjacentPoint.x ||
     sectionPoint.y !== adjacentPoint.y
@@ -457,7 +466,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
     return {
       ...route,
       route: routePoints,
-      vias: recomputeVias(routePoints),
+      vias: recomputeVias(routePoints, route.vias),
     }
   }
 
@@ -480,6 +489,13 @@ export class CrossingViaReductionSolver extends BaseSolver {
     const split = splitSectionAtDistance(section.points, newViaDistance)
     if (!split) return null
 
+    const originalVia =
+      side === "start" ? section.points[0] : section.points.at(-1)!
+    const movedVias = route.vias.map((via) =>
+      via.x === originalVia.x && via.y === originalVia.y
+        ? { ...via, x: split.point.x, y: split.point.y }
+        : via,
+    )
     const prefixZ = side === "start" ? targetZ : section.z
     const suffixZ = side === "start" ? section.z : targetZ
     const replacementPoints = [
@@ -497,7 +513,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
       route: {
         ...route,
         route: routePoints,
-        vias: recomputeVias(routePoints),
+        vias: recomputeVias(routePoints, movedVias),
       },
       relocatedVia: { x: split.point.x, y: split.point.y },
     }
@@ -532,8 +548,9 @@ export class CrossingViaReductionSolver extends BaseSolver {
       points: RoutePoint[]
     }> = []
     const relocatedVias: Array<{ x: number; y: number }> = []
+    let movedVias = route.vias
     const viaClearance =
-      route.viaDiameter / 2 +
+      getMaximumViaDiameter(route) / 2 +
       detourTraceThickness / 2 +
       this.traceMargin +
       EPSILON
@@ -558,6 +575,15 @@ export class CrossingViaReductionSolver extends BaseSolver {
           : Math.min(...crossingGroup.crossingDistances) - viaClearance
       const split = splitSectionAtDistance(section.points, newViaDistance)
       if (!split) return null
+      const originalVia =
+        crossingGroup.side === "start"
+          ? section.points[0]
+          : section.points.at(-1)!
+      movedVias = route.vias.map((via, index) =>
+        via.x === originalVia.x && via.y === originalVia.y
+          ? { ...via, x: split.point.x, y: split.point.y }
+          : movedVias[index],
+      )
       const prefixZ = crossingGroup.side === "start" ? detourZ : section.z
       const suffixZ = crossingGroup.side === "start" ? section.z : detourZ
       replacements.push({
@@ -585,7 +611,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
       route: {
         ...route,
         route: routePoints,
-        vias: recomputeVias(routePoints),
+        vias: recomputeVias(routePoints, movedVias),
       },
       relocatedVias,
     }
@@ -640,7 +666,8 @@ export class CrossingViaReductionSolver extends BaseSolver {
     relocatedVia: { x: number; y: number },
     hdRouteSHI: RouteClearanceIndex,
   ): boolean {
-    const viaRadius = route.viaDiameter / 2
+    const via = getViaAtPointOrThrow(route.vias, relocatedVia)
+    const viaRadius = (via.diameter ?? route.viaDiameter) / 2
     for (let z = 0; z < this.input.layerCount; z++) {
       const conflicts = hdRouteSHI.getConflictingRoutesNearPoint(
         { ...relocatedVia, z },
@@ -1075,7 +1102,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
     if (crossingDistances.length === 0) return null
 
     const viaClearance =
-      transitionRoute.viaDiameter / 2 +
+      getMaximumViaDiameter(transitionRoute) / 2 +
       detourRoute.traceThickness / 2 +
       this.traceMargin +
       EPSILON
@@ -1295,7 +1322,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
               group.transitionSectionIndex
             ]
           const viaClearance =
-            route.viaDiameter / 2 +
+            getMaximumViaDiameter(route) / 2 +
             detourRoute.traceThickness / 2 +
             this.traceMargin +
             EPSILON
@@ -1419,7 +1446,7 @@ export class CrossingViaReductionSolver extends BaseSolver {
       for (const via of route.vias) {
         graphics.circles.push({
           center: via,
-          radius: route.viaDiameter / 2,
+          radius: (via.diameter ?? route.viaDiameter) / 2,
           fill: "#ff20d6",
           label: `${route.connectionName} via`,
         })
