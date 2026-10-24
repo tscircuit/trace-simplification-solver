@@ -87,8 +87,8 @@ test("SRJ18 sample 2 routed-copper vias", async (): Promise<void> => {
       y: input.route.at(-1)!.y,
     })
   }
-  // Bounded routed-copper detours remove another 28 vias from this board.
-  expect(viaCount).toBe(506)
+  // Routed-copper detours and layer-aware pad clearance remove 46 vias.
+  expect(viaCount).toBe(502)
   const focusInput = inputByName.get(fixture.source.focusConnectionName)!
   const focusOutput = output.find(
     (route) => route.connectionName === fixture.source.focusConnectionName,
