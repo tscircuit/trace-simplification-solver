@@ -12,7 +12,9 @@ function preparedGeometry(solver: SingleSimplifiedPathSolver5): unknown {
     vias: solver.filteredVias,
     pads: solver.filteredJumperPads,
     thicknesses: [...solver.traceThicknessByObstacleSegmentId],
-    buckets: [...solver.segmentTree.buckets],
+    segmentCandidates: solver.filteredObstaclePathSegments.map(([a, b]) =>
+      solver.segmentTree.getSegmentsThatCouldIntersect(a, b),
+    ),
   }
 }
 
