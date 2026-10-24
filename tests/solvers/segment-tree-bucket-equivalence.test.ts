@@ -96,9 +96,18 @@ test("segment index exactly preserves grid candidates, order and endpoint refere
       z: Math.floor(random() * 4),
     })
     const segments: Segment[] = [
-      [{ x: -20, y: -20, z: 0 }, { x: 20, y: 20, z: 0 }],
-      [{ x: 20, y: -20, z: 1 }, { x: -20, y: 20, z: 1 }],
-      [{ x: Number.NaN, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }],
+      [
+        { x: -20, y: -20, z: 0 },
+        { x: 20, y: 20, z: 0 },
+      ],
+      [
+        { x: 20, y: -20, z: 1 },
+        { x: -20, y: 20, z: 1 },
+      ],
+      [
+        { x: Number.NaN, y: 0, z: 0 },
+        { x: 1, y: 1, z: 0 },
+      ],
     ]
     for (const coordinate of boundaryCoordinates) {
       segments.push([
@@ -121,8 +130,9 @@ test("segment index exactly preserves grid candidates, order and endpoint refere
     const reference = new BucketReference(segments)
     reference.SEGMENT_MARGIN = seed / 50
     const tree = new SegmentTree(segments, reference.SEGMENT_MARGIN)
-    expect(tree.getSegmentsThatCouldIntersect(segments[0][0], segments[0][1]))
-      .toEqual(reference.search(segments[0][0], segments[0][1]))
+    expect(
+      tree.getSegmentsThatCouldIntersect(segments[0][0], segments[0][1]),
+    ).toEqual(reference.search(segments[0][0], segments[0][1]))
     for (let i = 0; i < 250; i++) {
       const a =
         i < boundaryCoordinates.length

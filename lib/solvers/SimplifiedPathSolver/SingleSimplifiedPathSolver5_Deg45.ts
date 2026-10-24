@@ -407,15 +407,34 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     return p1.x === p2.x && p1.y === p2.y && p1.z === p2.z
   }
 
+  private findPathSegmentIndex(distance: number): number {
+    let lower = 0
+    let upper = this.pathSegments.length
+    // Cumulative endpoints never decrease before any NaN suffix. Choose the
+    // first inclusive endpoint to preserve shared boundaries and zero lengths.
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2)
+      if (this.pathSegments[middle].endDistance < distance) {
+        lower = middle + 1
+      } else {
+        upper = middle
+      }
+    }
+    const segment = this.pathSegments[lower]
+    return segment &&
+      distance >= segment.startDistance &&
+      distance <= segment.endDistance
+      ? lower
+      : -1
+  }
+
   // Get point at a specific distance along the path
   private getPointAtDistance(distance: number): Point {
     // Ensure distance is within bounds
     distance = Math.max(0, Math.min(distance, this.totalPathLength))
 
     // Find the segment that contains this distance
-    const segment = this.pathSegments.find(
-      (seg) => distance >= seg.startDistance && distance <= seg.endDistance,
-    )
+    const segment = this.pathSegments[this.findPathSegmentIndex(distance)]
 
     if (!segment) {
       // Fallback to last point if segment not found
@@ -440,9 +459,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       return this.inputRoute.route.length - 1
 
     // Find the segment that contains this distance
-    const segmentIndex = this.pathSegments.findIndex(
-      (seg) => distance >= seg.startDistance && distance <= seg.endDistance,
-    )
+    const segmentIndex = this.findPathSegmentIndex(distance)
 
     if (segmentIndex === -1) return 0
 
@@ -623,11 +640,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     startDistance: number,
     endIndexInclusive: number,
   ) {
-    const startIndex = this.pathSegments.findIndex(
-      (segment) =>
-        startDistance >= segment.startDistance &&
-        startDistance <= segment.endDistance,
-    )
+    const startIndex = this.findPathSegmentIndex(startDistance)
     if (startIndex === -1) {
       throw new Error(
         `Could not find path segment containing distance ${startDistance}`,
