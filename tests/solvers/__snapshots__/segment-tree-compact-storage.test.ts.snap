@@ -1,0 +1,32 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`compact segment storage keeps the same candidates without copying segments into every bucket: same ordered collision candidates with fewer stored segment copies 1`] = `
+{
+  "afterPackedIndex": {
+    "candidateOrder": [
+      "A",
+      "B",
+      "C",
+    ],
+    "retainedSegmentRecords": 3,
+  },
+  "beforeGrid": {
+    "candidateOrder": [
+      "A",
+      "B",
+      "C",
+    ],
+    "materializedBuckets": 36,
+    "retainedSegmentTuples": 76,
+  },
+  "fixture": {
+    "duplicateInputs": 1,
+    "uniqueSegments": 3,
+  },
+  "preserved": {
+    "candidateOrder": true,
+    "candidateValues": true,
+    "endpointObjectReferences": true,
+  },
+}
+`;
