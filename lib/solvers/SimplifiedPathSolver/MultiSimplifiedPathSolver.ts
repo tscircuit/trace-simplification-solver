@@ -111,6 +111,11 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     }
 
     this.activeSubSolver.step()
+    if (this.activeSubSolver.failed) {
+      this.failed = true
+      this.error = this.activeSubSolver.error
+      return
+    }
     if (this.activeSubSolver.solved) {
       if (
         this.enableVertexShortcuts &&
