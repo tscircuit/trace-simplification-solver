@@ -22,10 +22,11 @@ import { doesSegmentCrossPolygonBoundary } from "../../utils/polygonContainment"
 import { JUMPER_DIMENSIONS } from "../../utils/jumperSizes"
 import type { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
 
-interface Point {
-  x: number
-  y: number
-  z: number
+type Point = HighDensityIntraNodeRoute["route"][number]
+
+interface PathAnchor {
+  beforeIndex: number
+  afterIndex: number
 }
 
 interface PathSegment {
@@ -38,6 +39,11 @@ interface PathSegment {
 
 export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   private pathSegments: PathSegment[] = []
+  private sourcePointDistances: number[] = [0]
+  private pathAnchors: PathAnchor[] = []
+  private nextAnchorIndex = 0
+  private sourcePointIndex = 0
+  private lastOutputSourceIndex = 0
   private totalPathLength: number = 0
   private headDistanceAlongPath: number = 0
   private tailDistanceAlongPath: number = 0
@@ -385,8 +391,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       const end = this.inputRoute.route[i + 1]
 
       // Calculate segment length using Euclidean distance
-      const length =
-        Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) + i / 10000
+      const length = Math.hypot(end.x - start.x, end.y - start.y)
 
       this.pathSegments.push({
         start,
@@ -397,8 +402,52 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       })
 
       cumulativeDistance += length
+      this.sourcePointDistances.push(cumulativeDistance)
     }
 
+    const protectedPoints = this.inputRoute.route.map(
+      (point, index): boolean => {
+        const width = point.traceThickness ?? this.inputRoute.traceThickness
+        const previous = this.inputRoute.route[index - 1]
+        const next = this.inputRoute.route[index + 1]
+        return (
+          Object.keys(point).some(
+            (key) =>
+              key !== "x" &&
+              key !== "y" &&
+              key !== "z" &&
+              key !== "traceThickness",
+          ) ||
+          (previous !== undefined &&
+            (previous.traceThickness ?? this.inputRoute.traceThickness) !==
+              width) ||
+          (next !== undefined &&
+            (next.traceThickness ?? this.inputRoute.traceThickness) !== width)
+        )
+      },
+    )
+    // Source order, rather than invented distance, distinguishes events at
+    // the same position: duplicate vertices, vias and protected copper edges.
+    for (let index = 0; index < this.inputRoute.route.length; index++) {
+      const point = this.inputRoute.route[index]
+      if (
+        index === this.inputRoute.route.length - 1 ||
+        this.jumperPadPointIndices.has(index) ||
+        protectedPoints[index]
+      )
+        this.pathAnchors.push({ beforeIndex: index, afterIndex: index })
+      const segment = this.pathSegments[index]
+      if (
+        segment &&
+        ((segment.length === 0 &&
+          (protectedPoints[index] || protectedPoints[index + 1])) ||
+          segment.start.z !== segment.end.z ||
+          segment.start.toNextSegmentType ||
+          segment.start.insideJumperPad ||
+          segment.end.insideJumperPad)
+      )
+        this.pathAnchors.push({ beforeIndex: index, afterIndex: index + 1 })
+    }
     this.totalPathLength = cumulativeDistance
   }
 
@@ -407,50 +456,45 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     return p1.x === p2.x && p1.y === p2.y && p1.z === p2.z
   }
 
-  // Get point at a specific distance along the path
+  // Equal-distance source events are consumed separately from interpolation.
   private getPointAtDistance(distance: number): Point {
-    // Ensure distance is within bounds
-    distance = Math.max(0, Math.min(distance, this.totalPathLength))
-
-    // Find the segment that contains this distance
+    const anchor = this.pathAnchors[this.nextAnchorIndex]
+    const endIndex = anchor?.beforeIndex ?? this.inputRoute.route.length - 1
+    const sectionEnd = this.sourcePointDistances[endIndex]
+    if (distance >= sectionEnd) return this.inputRoute.route[endIndex]
     const segment = this.pathSegments.find(
-      (seg) => distance >= seg.startDistance && distance <= seg.endDistance,
+      (segment, index) =>
+        index >= this.sourcePointIndex &&
+        index < endIndex &&
+        segment.length > 0 &&
+        distance >= segment.startDistance &&
+        distance <= segment.endDistance,
     )
-
-    if (!segment) {
-      // Fallback to last point if segment not found
-      return this.inputRoute.route[this.inputRoute.route.length - 1]
-    }
-
-    // Calculate interpolation factor (between 0 and 1)
+    if (!segment)
+      throw new Error(`No planar segment contains path distance ${distance}`)
     const factor = (distance - segment.startDistance) / segment.length
-
-    // Interpolate the point
     return {
       x: segment.start.x + factor * (segment.end.x - segment.start.x),
       y: segment.start.y + factor * (segment.end.y - segment.start.y),
-      z: factor < 0.5 ? segment.start.z : segment.end.z, // Z doesn't interpolate - use the segment's start z value
+      z: segment.start.z,
+      ...(segment.start.traceThickness !== undefined
+        ? { traceThickness: segment.start.traceThickness }
+        : {}),
     }
   }
 
-  // Find nearest index in the original route for a given distance
   private getNearestIndexForDistance(distance: number): number {
-    if (distance <= 0) return 0
-    if (distance >= this.totalPathLength)
-      return this.inputRoute.route.length - 1
-
-    // Find the segment that contains this distance
-    const segmentIndex = this.pathSegments.findIndex(
-      (seg) => distance >= seg.startDistance && distance <= seg.endDistance,
-    )
-
-    if (segmentIndex === -1) return 0
-
-    // If closer to the end of the segment, return the next index
-    const segment = this.pathSegments[segmentIndex]
-    const midDistance = (segment.startDistance + segment.endDistance) / 2
-
-    return distance > midDistance ? segmentIndex + 1 : segmentIndex
+    const anchor = this.pathAnchors[this.nextAnchorIndex]
+    const endIndex = anchor?.beforeIndex ?? this.inputRoute.route.length - 1
+    if (distance >= this.sourcePointDistances[endIndex]) return endIndex
+    for (let index = this.sourcePointIndex; index < endIndex; index++) {
+      const segment = this.pathSegments[index]
+      if (segment.length === 0 || distance > segment.endDistance) continue
+      return distance > (segment.startDistance + segment.endDistance) / 2
+        ? index + 1
+        : index
+    }
+    throw new Error(`No source vertex contains path distance ${distance}`)
   }
 
   // Check if a path segment is valid
@@ -589,7 +633,14 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     // Check each path for validity
     for (const path of possiblePaths) {
       // Convert the 2D points to 3D points with the correct z value
-      const fullPath = path.map((p) => ({ x: p.x, y: p.y, z: start.z }))
+      const fullPath = path.map((p) => ({
+        x: p.x,
+        y: p.y,
+        z: start.z,
+        ...(start.traceThickness !== undefined
+          ? { traceThickness: start.traceThickness }
+          : {}),
+      }))
 
       // Check if this path is valid
       if (this.isValidPath(fullPath)) {
@@ -615,50 +666,126 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         continue
       }
       this.newRoute.push(path[i])
+      this.lastOutputSourceIndex = -1
     }
     this.currentStepSize = this.maxStepSize
+  }
+
+  private appendSourcePoint(sourceIndex: number): void {
+    if (this.lastOutputSourceIndex === sourceIndex) return
+    const sourcePoint = this.inputRoute.route[sourceIndex]
+    const last = this.newRoute[this.newRoute.length - 1]
+    // Identical plain vertices carry no event. Their source indices still
+    // advance, while metadata-bearing duplicates retain their exact ordering.
+    if (
+      sourceIndex !== this.inputRoute.route.length - 1 &&
+      last &&
+      this.arePointsEqual(last, sourcePoint) &&
+      [last, sourcePoint].every((point) =>
+        Object.keys(point).every(
+          (key) => key === "x" || key === "y" || key === "z",
+        ),
+      )
+    ) {
+      this.lastOutputSourceIndex = sourceIndex
+      return
+    }
+    if (
+      this.lastOutputSourceIndex === -1 &&
+      last &&
+      this.arePointsEqual(last, sourcePoint)
+    ) {
+      this.newRoute[this.newRoute.length - 1] = { ...sourcePoint }
+    } else this.newRoute.push({ ...sourcePoint })
+    this.lastOutputSourceIndex = sourceIndex
   }
 
   private appendOriginalRouteSlice(
     startDistance: number,
     endIndexInclusive: number,
-  ) {
-    const startIndex = this.pathSegments.findIndex(
-      (segment) =>
-        startDistance >= segment.startDistance &&
-        startDistance <= segment.endDistance,
+  ): void {
+    let startIndex = this.sourcePointIndex
+    while (
+      startIndex < endIndexInclusive &&
+      this.pathSegments[startIndex].endDistance <= startDistance
     )
-    if (startIndex === -1) {
-      throw new Error(
-        `Could not find path segment containing distance ${startDistance}`,
-      )
-    }
-
-    for (
-      let routeIndex = startIndex + 1;
-      routeIndex <= endIndexInclusive &&
-      routeIndex < this.inputRoute.route.length;
-      routeIndex++
-    ) {
-      const originalPoint = this.inputRoute.route[routeIndex]
-      const lastPointInNewRoute = this.newRoute[this.newRoute.length - 1]
-
-      if (
-        lastPointInNewRoute &&
-        this.arePointsEqual(lastPointInNewRoute, originalPoint)
-      ) {
-        continue
-      }
-
-      this.newRoute.push({ ...originalPoint })
+      startIndex++
+    for (let index = startIndex + 1; index <= endIndexInclusive; index++) {
+      this.appendSourcePoint(index)
     }
   }
 
-  moveHead(distance: number) {
-    this.lastHeadMoveDistance = distance
+  private finishPlanarSection(endIndex: number): void {
+    const endPoint = this.inputRoute.route[endIndex]
+    const tailPoint = this.getPointAtDistance(this.tailDistanceAlongPath)
+    const path = this.find45DegreePath(tailPoint, endPoint)
+    if (path) this.addPathToResult(path)
+    else {
+      const connectorStart = this.lastValidPath
+        ? this.lastValidPathHeadDistance
+        : this.tailDistanceAlongPath
+      if (this.lastValidPath) this.addPathToResult(this.lastValidPath)
+      this.appendOriginalRouteSlice(connectorStart, endIndex)
+    }
+    this.appendSourcePoint(endIndex)
+    this.lastValidPath = null
+  }
+
+  private consumeAnchor(anchor: PathAnchor): void {
+    this.finishPlanarSection(anchor.beforeIndex)
+    const before = this.inputRoute.route[anchor.beforeIndex]
+    const after = this.inputRoute.route[anchor.afterIndex]
+    if (
+      before.z !== after.z &&
+      before.toNextSegmentType !== "through_obstacle"
+    ) {
+      const viaAtStart =
+        this.inputRoute.vias.some(
+          (via) => via.x === before.x && via.y === before.y,
+        ) &&
+        !this.inputRoute.vias.some(
+          (via) => via.x === after.x && via.y === after.y,
+        )
+      const viaPoint = viaAtStart ? before : after
+      if (before.x !== after.x || before.y !== after.y) {
+        this.newRoute.push({
+          x: viaPoint.x,
+          y: viaPoint.y,
+          z: viaAtStart ? after.z : before.z,
+        })
+        this.lastOutputSourceIndex = -1
+      }
+      if (
+        !this.newVias.some(
+          (via) => via.x === viaPoint.x && via.y === viaPoint.y,
+        )
+      ) {
+        this.newVias.push({ x: viaPoint.x, y: viaPoint.y })
+      }
+    }
+    this.appendSourcePoint(anchor.afterIndex)
+    this.sourcePointIndex = anchor.afterIndex
+    this.nextAnchorIndex++
+    this.tailDistanceAlongPath = this.sourcePointDistances[anchor.afterIndex]
+    this.headDistanceAlongPath = this.tailDistanceAlongPath
+    this.lastValidPathHeadDistance = this.tailDistanceAlongPath
+    this.currentStepSize = this.maxStepSize
+  }
+
+  moveHead(distance: number): void {
+    const anchor = this.pathAnchors[this.nextAnchorIndex]
+    const sectionEnd = anchor
+      ? this.sourcePointDistances[anchor.beforeIndex]
+      : this.totalPathLength
+    // Keep the requested minimum step exact: subtracting rounded coordinates
+    // can turn 0.25 into 0.2500000000000018 and retry that step forever.
+    this.lastHeadMoveDistance = Math.min(
+      distance,
+      sectionEnd - this.headDistanceAlongPath,
+    )
     this.headDistanceAlongPath = Math.min(
-      this.headDistanceAlongPath + distance,
-      this.totalPathLength,
+      this.headDistanceAlongPath + this.lastHeadMoveDistance,
+      sectionEnd,
     )
   }
 
@@ -673,327 +800,68 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     )
   }
 
-  _step() {
-    const tailHasReachedEnd = this.tailDistanceAlongPath >= this.totalPathLength
-    const headHasReachedEnd = this.headDistanceAlongPath >= this.totalPathLength
-
-    if (tailHasReachedEnd) {
-      // Make sure to add the last point if needed
-      const lastPoint = this.inputRoute.route[this.inputRoute.route.length - 1]
-      if (
-        this.newRoute.length === 0 ||
-        !this.arePointsEqual(this.newRoute[this.newRoute.length - 1], lastPoint)
-      ) {
-        // TODO find path from tail to end w/ 45 degree paths
-        this.newRoute.push(lastPoint)
-      }
+  _step(): void {
+    // Drain equal-arclength events before checking completion, including an
+    // initial/terminal via or a route whose entire geometric length is zero.
+    let anchor = this.pathAnchors[this.nextAnchorIndex]
+    while (
+      anchor &&
+      this.sourcePointDistances[anchor.beforeIndex] <=
+        this.tailDistanceAlongPath
+    ) {
+      this.consumeAnchor(anchor)
+      anchor = this.pathAnchors[this.nextAnchorIndex]
+    }
+    if (this.tailDistanceAlongPath >= this.totalPathLength && !anchor) {
+      this.appendSourcePoint(this.inputRoute.route.length - 1)
       this.solved = true
       return
     }
-
-    if (headHasReachedEnd) {
-      const tailPoint = this.getPointAtDistance(this.tailDistanceAlongPath)
-      const endPoint = this.inputRoute.route[this.inputRoute.route.length - 1]
-
-      // Try to find a valid 45-degree path
-      const path45 = this.find45DegreePath(tailPoint, endPoint)
-
-      if (path45) {
-        // Add the path to the result
-        this.addPathToResult(path45)
+    const sectionEnd = anchor
+      ? this.sourcePointDistances[anchor.beforeIndex]
+      : this.totalPathLength
+    if (this.headDistanceAlongPath >= sectionEnd) {
+      if (anchor) this.consumeAnchor(anchor)
+      else {
+        this.finishPlanarSection(this.inputRoute.route.length - 1)
         this.solved = true
-        return
       }
-
-      // No valid 45-degree path to the end. Keep any valid simplified prefix
-      // and preserve only the remaining original tail to guarantee connectivity.
-      const connectorStartDistance = this.lastValidPath
-        ? this.lastValidPathHeadDistance
-        : this.tailDistanceAlongPath
-
-      if (this.lastValidPath) {
-        this.addPathToResult(this.lastValidPath)
-        this.lastValidPath = null
-      }
-
-      const startIndex = this.getNearestIndexForDistance(connectorStartDistance)
-      this.appendOriginalRouteSlice(
-        connectorStartDistance,
-        this.inputRoute.route.length - 1,
-      )
-
-      this.tailDistanceAlongPath = this.totalPathLength
-      this.headDistanceAlongPath = this.totalPathLength
-      this.solved = true
       return
     }
-
-    // Increment head distance but don't go past the end of the path
     this.moveHead(this.currentStepSize)
-
-    // Get the points between tail and head distances
     const tailPoint = this.getPointAtDistance(this.tailDistanceAlongPath)
     const headPoint = this.getPointAtDistance(this.headDistanceAlongPath)
-
-    // Check for layer changes between tail and head
-    const tailIndex = this.getNearestIndexForDistance(
-      this.tailDistanceAlongPath,
-    )
-    const headIndex = this.getNearestIndexForDistance(
-      this.headDistanceAlongPath,
-    )
-
-    // If there's a potential layer change in this segment
-    let layerChangeBtwHeadAndTail = false
-    let layerChangeAtDistance = -1
-
-    for (let i = tailIndex; i < headIndex; i++) {
-      if (
-        i + 1 < this.inputRoute.route.length &&
-        this.inputRoute.route[i].z !== this.inputRoute.route[i + 1].z
-      ) {
-        layerChangeBtwHeadAndTail = true
-        // Find the segment with the layer change
-        const changeSegmentIndex = i
-        layerChangeAtDistance =
-          this.pathSegments[changeSegmentIndex].startDistance
-        break
-      }
-    }
-
-    if (
-      layerChangeBtwHeadAndTail &&
-      this.lastHeadMoveDistance > this.minStepSize
-    ) {
-      this.stepBackAndReduceStepSize()
-      return
-    }
-
-    // Check for jumper pad points between tail and head
-    // These points must be preserved exactly like layer changes
-    let jumperPadBtwHeadAndTail = false
-    let jumperPadAtIndex = -1
-    let jumperPadAtDistance = -1
-
-    for (let i = tailIndex + 1; i <= headIndex; i++) {
-      if (this.jumperPadPointIndices.has(i)) {
-        jumperPadBtwHeadAndTail = true
-        jumperPadAtIndex = i
-        // Find the distance to this jumper pad point
-        if (i > 0 && i - 1 < this.pathSegments.length) {
-          jumperPadAtDistance = this.pathSegments[i - 1].endDistance
-        } else {
-          jumperPadAtDistance = this.pathSegments[0]?.startDistance ?? 0
-        }
-        break
-      }
-    }
-
-    if (
-      jumperPadBtwHeadAndTail &&
-      this.lastHeadMoveDistance > this.minStepSize
-    ) {
-      this.stepBackAndReduceStepSize()
-      return
-    }
-
-    // If there's a jumper pad point, handle it (force stop at the pad)
-    if (jumperPadBtwHeadAndTail && jumperPadAtIndex >= 0) {
-      const jumperPadPoint = this.inputRoute.route[jumperPadAtIndex]
-
-      // 1. Add the last valid path found *before* the jumper pad.
-      if (this.lastValidPath) {
-        this.addPathToResult(this.lastValidPath)
-        this.lastValidPath = null
-      }
-
-      // 2. Ensure the route connects *exactly* to the jumper pad location
-      const lastPointInNewRoute = this.newRoute[this.newRoute.length - 1]
-      if (
-        !lastPointInNewRoute ||
-        lastPointInNewRoute.x !== jumperPadPoint.x ||
-        lastPointInNewRoute.y !== jumperPadPoint.y
-      ) {
-        // Add the jumper pad point explicitly
-        this.newRoute.push({
-          x: jumperPadPoint.x,
-          y: jumperPadPoint.y,
-          z: jumperPadPoint.z,
-        })
-      }
-
-      // 3. Reset state for the next segment (after the jumper pad)
-      this.currentStepSize = this.maxStepSize
-      this.tailDistanceAlongPath = jumperPadAtDistance
-      this.headDistanceAlongPath = this.tailDistanceAlongPath
-      this.lastValidPath = null
-      this.lastValidPathHeadDistance = this.tailDistanceAlongPath
-
-      return
-    }
-
-    // If there's a layer change, handle it
-    // Inside the _step method, within the layer change handling block:
-    if (layerChangeBtwHeadAndTail && layerChangeAtDistance > 0) {
-      const connectorStartDistance = this.lastValidPath
-        ? this.lastValidPathHeadDistance
-        : this.tailDistanceAlongPath
-      // Get the point *after* the layer change from the original route.
-      // This point's XY coordinates define the via location.
-      const indexAfterLayerChange =
-        this.getNearestIndexForDistance(layerChangeAtDistance) + 1
-      const pointAfterChange = this.inputRoute.route[indexAfterLayerChange]
-      const viaLocation = { x: pointAfterChange.x, y: pointAfterChange.y }
-
-      // 1. Add the last valid path found *before* the layer change.
-      if (this.lastValidPath) {
-        this.addPathToResult(this.lastValidPath)
-        this.lastValidPath = null // Clear it after adding
-      }
-
-      // 2. Reach the via on the current layer without introducing an
-      // unchecked shortcut. If a direct 45-degree path is illegal, preserve
-      // the original geometry up to the via.
-      const lastPointInNewRoute = this.newRoute[this.newRoute.length - 1]
-      const viaPointOnLeavingLayer = {
-        x: viaLocation.x,
-        y: viaLocation.y,
-        z: lastPointInNewRoute.z,
-      }
-
-      if (!this.arePointsEqual(lastPointInNewRoute, viaPointOnLeavingLayer)) {
-        const pathToVia = this.find45DegreePath(
-          lastPointInNewRoute,
-          viaPointOnLeavingLayer,
-        )
-
-        if (pathToVia) {
-          this.addPathToResult(pathToVia)
-        } else {
-          this.appendOriginalRouteSlice(
-            connectorStartDistance,
-            indexAfterLayerChange - 1,
-          )
-        }
-      }
-
-      // 3. Add the via itself.
-      this.newVias.push(viaLocation)
-
-      // 4. Add the point *after* the layer change, starting the segment on the *new* layer.
-      // Ensure this point also uses the precise via location and the *new* Z coordinate.
-      this.newRoute.push({
-        x: viaLocation.x,
-        y: viaLocation.y,
-        z: pointAfterChange.z, // Use the Z of the layer we are entering
-      })
-
-      // 5. Reset state for the next segment.
-      this.currentStepSize = this.maxStepSize
-
-      // Update tail to the start of the segment *after* the layer change point
-      const segmentIndexAfterChange = this.pathSegments.findIndex(
-        (seg) => seg.start === pointAfterChange,
-      )
-
-      if (segmentIndexAfterChange !== -1) {
-        this.tailDistanceAlongPath =
-          this.pathSegments[segmentIndexAfterChange].startDistance
-        this.headDistanceAlongPath = this.tailDistanceAlongPath // Reset head to tail
-        this.lastValidPath = null // Ensure lastValidPath is clear
-        this.lastValidPathHeadDistance = this.tailDistanceAlongPath
-      } else if (indexAfterLayerChange < this.inputRoute.route.length) {
-        // Check if it's the last point - if so, we are done as there are no more segments
-        if (indexAfterLayerChange === this.inputRoute.route.length - 1) {
-          this.solved = true
-          return
-        }
-
-        // Fallback if the exact segment wasn't found but index is valid
-        // This might happen due to floating point comparisons if getPointAtDistance was used previously
-        console.warn(
-          "Fallback used for tailDistanceAlongPath after layer change",
-        )
-        const segment = this.pathSegments.find(
-          (seg) => seg.start === this.inputRoute.route[indexAfterLayerChange],
-        )
-        if (segment) {
-          this.tailDistanceAlongPath = segment.startDistance
-          this.headDistanceAlongPath = this.tailDistanceAlongPath
-          this.lastValidPath = null
-          this.lastValidPathHeadDistance = this.tailDistanceAlongPath
-        } else {
-          console.error(
-            `[${this.inputRoute.connectionName}] Could not find segment start after layer change. Path might be incomplete.
-            Index sought: ${indexAfterLayerChange}, Point: (${this.inputRoute.route[indexAfterLayerChange].x.toFixed(3)}, ${this.inputRoute.route[indexAfterLayerChange].y.toFixed(3)}, z=${this.inputRoute.route[indexAfterLayerChange].z})
-            Route Length: ${this.inputRoute.route.length}, Path Segments: ${this.pathSegments.length}`,
-          )
-          this.solved = true // Prevent infinite loop
-        }
-      } else {
-        // Layer change occurred at the very last point/segment.
-        console.warn("Layer change occurred at the end of the path.")
-        // The last point on the new layer is already added. We are done.
-        this.solved = true
-      }
-
-      return // End the step after handling the layer change
-    }
-
-    // Try to find a valid 45-degree path from tail to head
     const path45 = this.find45DegreePath(tailPoint, headPoint)
-
     if (!path45 && this.lastHeadMoveDistance > this.minStepSize) {
       this.stepBackAndReduceStepSize()
       return
     }
-
     if (!path45 && !this.lastValidPath) {
-      const oldTailPoint = this.getPointAtDistance(this.tailDistanceAlongPath)
-
-      // Move tail and head forward by stepSize
-      this.tailDistanceAlongPath += this.minStepSize
-      this.moveHead(this.minStepSize)
-
-      let newTailIndex = this.getNearestIndexForDistance(
+      const targetDistance = Math.min(
+        this.tailDistanceAlongPath + this.minStepSize,
+        sectionEnd,
+      )
+      const endIndex = anchor?.beforeIndex ?? this.inputRoute.route.length - 1
+      let sourceIndex = this.getNearestIndexForDistance(targetDistance)
+      while (
+        sourceIndex < endIndex &&
+        this.sourcePointDistances[sourceIndex] <= this.tailDistanceAlongPath
+      )
+        sourceIndex++
+      this.appendOriginalRouteSlice(this.tailDistanceAlongPath, sourceIndex)
+      this.sourcePointIndex = sourceIndex
+      this.tailDistanceAlongPath = this.sourcePointDistances[sourceIndex]
+      this.headDistanceAlongPath = Math.max(
+        this.headDistanceAlongPath,
         this.tailDistanceAlongPath,
       )
-      // A minimum-size step can span a short segment and its via. Stop on
-      // the leaving layer so the layer-change handler preserves the via.
-      for (let i = tailIndex; i < newTailIndex; i++) {
-        if (this.inputRoute.route[i].z !== this.inputRoute.route[i + 1].z) {
-          newTailIndex = i
-          break
-        }
-      }
-      const newTailPoint = this.inputRoute.route[newTailIndex]
-      const lastRoutePoint =
-        this.inputRoute.route[this.inputRoute.route.length - 1]
-
-      // Add the segment from old tail to new tail
-      if (
-        !this.arePointsEqual(oldTailPoint, newTailPoint) &&
-        !this.arePointsEqual(newTailPoint, lastRoutePoint)
-      ) {
-        this.newRoute.push(newTailPoint)
-        // Start the next validated path at the vertex appended above.
-        this.tailDistanceAlongPath =
-          newTailIndex === 0
-            ? 0
-            : this.pathSegments[newTailIndex - 1].endDistance
-      }
-
       return
     }
-
     if (path45) {
-      // Valid 45-degree path found, store it and continue expanding
       this.lastValidPath = path45
       this.lastValidPathHeadDistance = this.headDistanceAlongPath
       return
     }
-
-    // No valid path found, use the last valid path and reset
     if (this.lastValidPath) {
       this.addPathToResult(this.lastValidPath)
       this.lastValidPath = null
