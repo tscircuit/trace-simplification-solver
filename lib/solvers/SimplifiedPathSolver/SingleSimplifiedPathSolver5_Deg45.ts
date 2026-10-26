@@ -391,8 +391,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       const end = this.inputRoute.route[i + 1]
 
       // Calculate segment length using Euclidean distance
-      const length =
-        Math.hypot(end.x - start.x, end.y - start.y)
+      const length = Math.hypot(end.x - start.x, end.y - start.y)
 
       this.pathSegments.push({
         start,
@@ -406,14 +405,27 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       this.sourcePointDistances.push(cumulativeDistance)
     }
 
-    const protectedPoints = this.inputRoute.route.map((point, index): boolean => {
-      const width = point.traceThickness ?? this.inputRoute.traceThickness
-      const previous = this.inputRoute.route[index - 1]
-      const next = this.inputRoute.route[index + 1]
-      return Object.keys(point).some((key) => key !== "x" && key !== "y" && key !== "z" && key !== "traceThickness") ||
-        (previous !== undefined && (previous.traceThickness ?? this.inputRoute.traceThickness) !== width) ||
-        (next !== undefined && (next.traceThickness ?? this.inputRoute.traceThickness) !== width)
-    })
+    const protectedPoints = this.inputRoute.route.map(
+      (point, index): boolean => {
+        const width = point.traceThickness ?? this.inputRoute.traceThickness
+        const previous = this.inputRoute.route[index - 1]
+        const next = this.inputRoute.route[index + 1]
+        return (
+          Object.keys(point).some(
+            (key) =>
+              key !== "x" &&
+              key !== "y" &&
+              key !== "z" &&
+              key !== "traceThickness",
+          ) ||
+          (previous !== undefined &&
+            (previous.traceThickness ?? this.inputRoute.traceThickness) !==
+              width) ||
+          (next !== undefined &&
+            (next.traceThickness ?? this.inputRoute.traceThickness) !== width)
+        )
+      },
+    )
     // Source order, rather than invented distance, distinguishes events at
     // the same position: duplicate vertices, vias and protected copper edges.
     for (let index = 0; index < this.inputRoute.route.length; index++) {
@@ -422,14 +434,19 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         index === this.inputRoute.route.length - 1 ||
         this.jumperPadPointIndices.has(index) ||
         protectedPoints[index]
-      ) this.pathAnchors.push({ beforeIndex: index, afterIndex: index })
+      )
+        this.pathAnchors.push({ beforeIndex: index, afterIndex: index })
       const segment = this.pathSegments[index]
-      if (segment && (
-        (segment.length === 0 && (protectedPoints[index] || protectedPoints[index + 1])) ||
-        segment.start.z !== segment.end.z ||
-        segment.start.toNextSegmentType ||
-        segment.start.insideJumperPad || segment.end.insideJumperPad
-      )) this.pathAnchors.push({ beforeIndex: index, afterIndex: index + 1 })
+      if (
+        segment &&
+        ((segment.length === 0 &&
+          (protectedPoints[index] || protectedPoints[index + 1])) ||
+          segment.start.z !== segment.end.z ||
+          segment.start.toNextSegmentType ||
+          segment.start.insideJumperPad ||
+          segment.end.insideJumperPad)
+      )
+        this.pathAnchors.push({ beforeIndex: index, afterIndex: index + 1 })
     }
     this.totalPathLength = cumulativeDistance
   }
@@ -445,17 +462,24 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     const endIndex = anchor?.beforeIndex ?? this.inputRoute.route.length - 1
     const sectionEnd = this.sourcePointDistances[endIndex]
     if (distance >= sectionEnd) return this.inputRoute.route[endIndex]
-    const segment = this.pathSegments.find((segment, index) =>
-      index >= this.sourcePointIndex && index < endIndex &&
-      segment.length > 0 && distance >= segment.startDistance && distance <= segment.endDistance,
+    const segment = this.pathSegments.find(
+      (segment, index) =>
+        index >= this.sourcePointIndex &&
+        index < endIndex &&
+        segment.length > 0 &&
+        distance >= segment.startDistance &&
+        distance <= segment.endDistance,
     )
-    if (!segment) throw new Error(`No planar segment contains path distance ${distance}`)
+    if (!segment)
+      throw new Error(`No planar segment contains path distance ${distance}`)
     const factor = (distance - segment.startDistance) / segment.length
     return {
       x: segment.start.x + factor * (segment.end.x - segment.start.x),
       y: segment.start.y + factor * (segment.end.y - segment.start.y),
       z: segment.start.z,
-      ...(segment.start.traceThickness !== undefined ? { traceThickness: segment.start.traceThickness } : {}),
+      ...(segment.start.traceThickness !== undefined
+        ? { traceThickness: segment.start.traceThickness }
+        : {}),
     }
   }
 
@@ -466,7 +490,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     for (let index = this.sourcePointIndex; index < endIndex; index++) {
       const segment = this.pathSegments[index]
       if (segment.length === 0 || distance > segment.endDistance) continue
-      return distance > (segment.startDistance + segment.endDistance) / 2 ? index + 1 : index
+      return distance > (segment.startDistance + segment.endDistance) / 2
+        ? index + 1
+        : index
     }
     throw new Error(`No source vertex contains path distance ${distance}`)
   }
@@ -607,7 +633,14 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     // Check each path for validity
     for (const path of possiblePaths) {
       // Convert the 2D points to 3D points with the correct z value
-      const fullPath = path.map((p) => ({ x: p.x, y: p.y, z: start.z, ...(start.traceThickness !== undefined ? { traceThickness: start.traceThickness } : {}) }))
+      const fullPath = path.map((p) => ({
+        x: p.x,
+        y: p.y,
+        z: start.z,
+        ...(start.traceThickness !== undefined
+          ? { traceThickness: start.traceThickness }
+          : {}),
+      }))
 
       // Check if this path is valid
       if (this.isValidPath(fullPath)) {
@@ -644,20 +677,39 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     const last = this.newRoute[this.newRoute.length - 1]
     // Identical plain vertices carry no event. Their source indices still
     // advance, while metadata-bearing duplicates retain their exact ordering.
-    if (sourceIndex !== this.inputRoute.route.length - 1 && last && this.arePointsEqual(last, sourcePoint) &&
-      [last, sourcePoint].every((point) => Object.keys(point).every((key) => key === "x" || key === "y" || key === "z"))) {
+    if (
+      sourceIndex !== this.inputRoute.route.length - 1 &&
+      last &&
+      this.arePointsEqual(last, sourcePoint) &&
+      [last, sourcePoint].every((point) =>
+        Object.keys(point).every(
+          (key) => key === "x" || key === "y" || key === "z",
+        ),
+      )
+    ) {
       this.lastOutputSourceIndex = sourceIndex
       return
     }
-    if (this.lastOutputSourceIndex === -1 && last && this.arePointsEqual(last, sourcePoint)) {
+    if (
+      this.lastOutputSourceIndex === -1 &&
+      last &&
+      this.arePointsEqual(last, sourcePoint)
+    ) {
       this.newRoute[this.newRoute.length - 1] = { ...sourcePoint }
     } else this.newRoute.push({ ...sourcePoint })
     this.lastOutputSourceIndex = sourceIndex
   }
 
-  private appendOriginalRouteSlice(startDistance: number, endIndexInclusive: number): void {
+  private appendOriginalRouteSlice(
+    startDistance: number,
+    endIndexInclusive: number,
+  ): void {
     let startIndex = this.sourcePointIndex
-    while (startIndex < endIndexInclusive && this.pathSegments[startIndex].endDistance <= startDistance) startIndex++
+    while (
+      startIndex < endIndexInclusive &&
+      this.pathSegments[startIndex].endDistance <= startDistance
+    )
+      startIndex++
     for (let index = startIndex + 1; index <= endIndexInclusive; index++) {
       this.appendSourcePoint(index)
     }
@@ -669,7 +721,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     const path = this.find45DegreePath(tailPoint, endPoint)
     if (path) this.addPathToResult(path)
     else {
-      const connectorStart = this.lastValidPath ? this.lastValidPathHeadDistance : this.tailDistanceAlongPath
+      const connectorStart = this.lastValidPath
+        ? this.lastValidPathHeadDistance
+        : this.tailDistanceAlongPath
       if (this.lastValidPath) this.addPathToResult(this.lastValidPath)
       this.appendOriginalRouteSlice(connectorStart, endIndex)
     }
@@ -681,15 +735,31 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     this.finishPlanarSection(anchor.beforeIndex)
     const before = this.inputRoute.route[anchor.beforeIndex]
     const after = this.inputRoute.route[anchor.afterIndex]
-    if (before.z !== after.z && before.toNextSegmentType !== "through_obstacle") {
-      const viaAtStart = this.inputRoute.vias.some((via) => via.x === before.x && via.y === before.y) &&
-        !this.inputRoute.vias.some((via) => via.x === after.x && via.y === after.y)
+    if (
+      before.z !== after.z &&
+      before.toNextSegmentType !== "through_obstacle"
+    ) {
+      const viaAtStart =
+        this.inputRoute.vias.some(
+          (via) => via.x === before.x && via.y === before.y,
+        ) &&
+        !this.inputRoute.vias.some(
+          (via) => via.x === after.x && via.y === after.y,
+        )
       const viaPoint = viaAtStart ? before : after
       if (before.x !== after.x || before.y !== after.y) {
-        this.newRoute.push({ x: viaPoint.x, y: viaPoint.y, z: viaAtStart ? after.z : before.z })
+        this.newRoute.push({
+          x: viaPoint.x,
+          y: viaPoint.y,
+          z: viaAtStart ? after.z : before.z,
+        })
         this.lastOutputSourceIndex = -1
       }
-      if (!this.newVias.some((via) => via.x === viaPoint.x && via.y === viaPoint.y)) {
+      if (
+        !this.newVias.some(
+          (via) => via.x === viaPoint.x && via.y === viaPoint.y,
+        )
+      ) {
         this.newVias.push({ x: viaPoint.x, y: viaPoint.y })
       }
     }
@@ -704,11 +774,19 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
   moveHead(distance: number): void {
     const anchor = this.pathAnchors[this.nextAnchorIndex]
-    const sectionEnd = anchor ? this.sourcePointDistances[anchor.beforeIndex] : this.totalPathLength
+    const sectionEnd = anchor
+      ? this.sourcePointDistances[anchor.beforeIndex]
+      : this.totalPathLength
     // Keep the requested minimum step exact: subtracting rounded coordinates
     // can turn 0.25 into 0.2500000000000018 and retry that step forever.
-    this.lastHeadMoveDistance = Math.min(distance, sectionEnd - this.headDistanceAlongPath)
-    this.headDistanceAlongPath = Math.min(this.headDistanceAlongPath + this.lastHeadMoveDistance, sectionEnd)
+    this.lastHeadMoveDistance = Math.min(
+      distance,
+      sectionEnd - this.headDistanceAlongPath,
+    )
+    this.headDistanceAlongPath = Math.min(
+      this.headDistanceAlongPath + this.lastHeadMoveDistance,
+      sectionEnd,
+    )
   }
 
   stepBackAndReduceStepSize() {
@@ -726,7 +804,11 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     // Drain equal-arclength events before checking completion, including an
     // initial/terminal via or a route whose entire geometric length is zero.
     let anchor = this.pathAnchors[this.nextAnchorIndex]
-    while (anchor && this.sourcePointDistances[anchor.beforeIndex] <= this.tailDistanceAlongPath) {
+    while (
+      anchor &&
+      this.sourcePointDistances[anchor.beforeIndex] <=
+        this.tailDistanceAlongPath
+    ) {
       this.consumeAnchor(anchor)
       anchor = this.pathAnchors[this.nextAnchorIndex]
     }
@@ -735,7 +817,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       this.solved = true
       return
     }
-    const sectionEnd = anchor ? this.sourcePointDistances[anchor.beforeIndex] : this.totalPathLength
+    const sectionEnd = anchor
+      ? this.sourcePointDistances[anchor.beforeIndex]
+      : this.totalPathLength
     if (this.headDistanceAlongPath >= sectionEnd) {
       if (anchor) this.consumeAnchor(anchor)
       else {
@@ -753,14 +837,24 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       return
     }
     if (!path45 && !this.lastValidPath) {
-      const targetDistance = Math.min(this.tailDistanceAlongPath + this.minStepSize, sectionEnd)
+      const targetDistance = Math.min(
+        this.tailDistanceAlongPath + this.minStepSize,
+        sectionEnd,
+      )
       const endIndex = anchor?.beforeIndex ?? this.inputRoute.route.length - 1
       let sourceIndex = this.getNearestIndexForDistance(targetDistance)
-      while (sourceIndex < endIndex && this.sourcePointDistances[sourceIndex] <= this.tailDistanceAlongPath) sourceIndex++
+      while (
+        sourceIndex < endIndex &&
+        this.sourcePointDistances[sourceIndex] <= this.tailDistanceAlongPath
+      )
+        sourceIndex++
       this.appendOriginalRouteSlice(this.tailDistanceAlongPath, sourceIndex)
       this.sourcePointIndex = sourceIndex
       this.tailDistanceAlongPath = this.sourcePointDistances[sourceIndex]
-      this.headDistanceAlongPath = Math.max(this.headDistanceAlongPath, this.tailDistanceAlongPath)
+      this.headDistanceAlongPath = Math.max(
+        this.headDistanceAlongPath,
+        this.tailDistanceAlongPath,
+      )
       return
     }
     if (path45) {
