@@ -131,7 +131,7 @@ beforeAll((): void => {
   ).toMatchSvgSnapshot(import.meta.path)
 })
 
-test.failing(
+test(
   "preserves SRJ18 sample 3's final via after a blocked path step",
   (): void => {
     const output = solver.simplifiedRoute

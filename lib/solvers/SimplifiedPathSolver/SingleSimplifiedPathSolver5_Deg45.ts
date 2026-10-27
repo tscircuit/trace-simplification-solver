@@ -981,6 +981,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           newTailIndex === 0
             ? 0
             : this.pathSegments[newTailIndex - 1].endDistance
+        // The appended vertex can be ahead of the sampling head. Keep
+        // layer changes in the next search window so their vias are kept.
+        this.headDistanceAlongPath = Math.max(
+          this.headDistanceAlongPath,
+          this.tailDistanceAlongPath,
+        )
       }
 
       return
