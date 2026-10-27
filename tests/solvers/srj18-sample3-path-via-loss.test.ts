@@ -123,8 +123,14 @@ beforeAll((): void => {
   expect(
     stackSvgsHorizontally(
       [
-        getRouteSvg({ route: config.inputRoute, title: "SRJ18 sample 3 input" }),
-        getRouteSvg({ route: solver.simplifiedRoute, title: "Simplified output" }),
+        getRouteSvg({
+          route: config.inputRoute,
+          title: "SRJ18 sample 3 input",
+        }),
+        getRouteSvg({
+          route: solver.simplifiedRoute,
+          title: "Simplified output",
+        }),
       ],
       { gap: 12, normalizeSize: false },
     ),
