@@ -137,23 +137,20 @@ beforeAll((): void => {
   ).toMatchSvgSnapshot(import.meta.path)
 })
 
-test(
-  "preserves SRJ18 sample 3's final via after a blocked path step",
-  (): void => {
-    const output = solver.simplifiedRoute
-    expect(fixture.config).toEqual(originalConfig)
-    expect(config.inputRoute).toEqual(originalConfig.inputRoute)
-    expect(output.startPcbPortId).toBe(config.inputRoute.startPcbPortId)
-    expect(output.endPcbPortId).toBe(config.inputRoute.endPcbPortId)
-    for (const index of [0, -1]) {
-      const inputPoint = config.inputRoute.route.at(index)!
-      expect(output.route.at(index)).toMatchObject({
-        x: inputPoint.x,
-        y: inputPoint.y,
-        z: inputPoint.z,
-      })
-    }
-    expect(getInvalidLayerChanges(output)).toEqual([])
-    expect(output.vias).toEqual(config.inputRoute.vias)
-  },
-)
+test("preserves SRJ18 sample 3's final via after a blocked path step", (): void => {
+  const output = solver.simplifiedRoute
+  expect(fixture.config).toEqual(originalConfig)
+  expect(config.inputRoute).toEqual(originalConfig.inputRoute)
+  expect(output.startPcbPortId).toBe(config.inputRoute.startPcbPortId)
+  expect(output.endPcbPortId).toBe(config.inputRoute.endPcbPortId)
+  for (const index of [0, -1]) {
+    const inputPoint = config.inputRoute.route.at(index)!
+    expect(output.route.at(index)).toMatchObject({
+      x: inputPoint.x,
+      y: inputPoint.y,
+      z: inputPoint.z,
+    })
+  }
+  expect(getInvalidLayerChanges(output)).toEqual([])
+  expect(output.vias).toEqual(config.inputRoute.vias)
+})
