@@ -990,6 +990,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
             : this.pathSegments[newTailIndex - 1].endDistance
       }
 
+      // Snapping to an original vertex can advance farther than moveHead().
+      // Keep the next layer-change scan ordered from tail to head.
+      this.headDistanceAlongPath = Math.max(
+        this.headDistanceAlongPath,
+        this.tailDistanceAlongPath,
+      )
       return
     }
 
