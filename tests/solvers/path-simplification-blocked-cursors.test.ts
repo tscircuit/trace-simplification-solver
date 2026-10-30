@@ -50,7 +50,10 @@ test("blocked route prefixes keep the progress window ordered", (): void => {
         connectionName: `other-${index}`,
         traceThickness: 0.1,
         viaDiameter: 0.3,
-        route: [{ ...point, z: 0 }, { ...point, z: 1 }],
+        route: [
+          { ...point, z: 0 },
+          { ...point, z: 1 },
+        ],
         vias: [point],
       }
     })
