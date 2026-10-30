@@ -3,13 +3,18 @@ import { MultiSimplifiedPathSolver } from "../../lib/solvers/SimplifiedPathSolve
 
 test("propagates a failed route simplifier instead of repeatedly stepping it", (): void => {
   const solver = new MultiSimplifiedPathSolver({
-    unsimplifiedHdRoutes: [{
-      connectionName: "route",
-      traceThickness: 0.1,
-      viaDiameter: 0.3,
-      route: [{ x: 0, y: 0, z: 0 }, { x: 100, y: 0, z: 0 }],
-      vias: [],
-    }],
+    unsimplifiedHdRoutes: [
+      {
+        connectionName: "route",
+        traceThickness: 0.1,
+        viaDiameter: 0.3,
+        route: [
+          { x: 0, y: 0, z: 0 },
+          { x: 100, y: 0, z: 0 },
+        ],
+        vias: [],
+      },
+    ],
     obstacles: [],
   })
   solver.step()
