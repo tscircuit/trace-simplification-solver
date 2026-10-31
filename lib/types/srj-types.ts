@@ -18,6 +18,7 @@ export interface Obstacle {
   /** True when this obstacle replaces one completed fanout source footprint. */
   isFanoutSourceKeepout?: boolean
   shape?: "circle"
+  isNonPlatedHole?: boolean
   /**
    * Optional Circuit JSON provenance carried through SRJ.
    * Routing algorithms must not use this field.

@@ -15,6 +15,7 @@ import { minimumDistanceBetweenSegments } from "../../utils/minimumDistanceBetwe
 import { SegmentTree } from "../../data-structures/SegmentTree"
 import {
   segmentToBoxMinDistance,
+  segmentToCircleMinDistance,
   computeGapBetweenBoxes,
   segmentToBoundsMinDistance,
 } from "@tscircuit/math-utils"
@@ -468,7 +469,13 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         continue
       }
 
-      const distToObstacle = segmentToBoxMinDistance(start, end, obstacle)
+      const distToObstacle =
+        obstacle.isNonPlatedHole && obstacle.shape === "circle"
+          ? segmentToCircleMinDistance(start, end, {
+              ...obstacle.center,
+              radius: obstacle.width / 2,
+            })
+          : segmentToBoxMinDistance(start, end, obstacle)
 
       // Check if the line might intersect with this obstacle's borders
       if (
