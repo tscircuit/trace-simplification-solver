@@ -19,3 +19,5 @@ export { SingleRouteUselessViaRemovalSolver } from "./lib/solvers/UselessViaRemo
 export { ObstacleSpatialHashIndex } from "./lib/data-structures/ObstacleTree"
 export { HighDensityRouteSpatialIndex } from "./lib/data-structures/HighDensityRouteSpatialIndex"
 export { calculate45DegreePaths } from "./lib/utils/calculate45DegreePaths"
+
+export { getTraceSimplificationObstacles } from "./lib/utils/getTraceSimplificationObstacles"
