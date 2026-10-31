@@ -39,8 +39,8 @@ export function getCrossingTransitionComparisonSvg(
     [
       panel(beforeGraphics, beforeRoutes, "INPUT", [
         "Coincident XYZ points may carry different outgoing edges.",
-        "Layer 0 = top; layer 1 = bottom. Rings mark vias.",
-        "The outgoing plated-hole marker must survive deduplication.",
+        "Layer 0 = top; layer 1 = bottom. Magenta dots mark vias.",
+        "Only the last duplicate point owns the outgoing edge.",
       ]),
       panel(
         solver.visualize(),

@@ -31,15 +31,22 @@ test("duplicate route points preserve the outgoing through-obstacle segment", as
     layerCount: 2,
   })
   const beforeGraphics = solver.visualize()
-  let error: Error | undefined
-  try {
-    solver.solve()
-  } catch (cause) {
-    error = cause as Error
-  }
+  solver.solve()
   await expect(
-    getCrossingTransitionComparisonSvg(solver, beforeGraphics, before, error),
+    getCrossingTransitionComparisonSvg(solver, beforeGraphics, before),
   ).toMatchSvgSnapshot(import.meta.path)
-  expect(error?.message).toContain("layer transition without a via")
+  const [detour, transition] = solver.getReducedHdRoutes()
+  expect(solver.solved).toBe(true)
+  expect(solver.failed).toBe(false)
+  expect(detour!.vias).toHaveLength(0)
+  expect(transition!.vias).toHaveLength(1)
+  expect(transition!.route[0]).toMatchObject({
+    x: 1,
+    y: 5,
+    z: 0,
+    toNextSegmentType: "through_obstacle",
+    toNextSegmentCircuitJsonMetadata: { pcb_plated_hole_id: "terminal-hole" },
+  })
+  expect(transition!.route[1]).toMatchObject({ x: 0, y: 4, z: 1 })
   expect(routes).toEqual(before)
 })
