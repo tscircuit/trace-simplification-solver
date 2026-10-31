@@ -8,6 +8,7 @@ import { SameNetViaMergerSolver } from "../SameNetViaMergerSolver/SameNetViaMerg
 import { GraphicsObject } from "graphics-debug"
 import { getJumpersGraphics } from "../../utils/getJumperGraphics"
 import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
+import { getTraceSimplificationObstacles } from "../../utils/getTraceSimplificationObstacles"
 import { CrossingViaReductionSolver } from "../CrossingViaReductionSolver/crossing-via-reduction-solver"
 
 type Phase =
@@ -91,6 +92,7 @@ export class TraceSimplificationSolver extends BaseSolver {
    *   - defaultViaDiameter: Default diameter for vias
    *   - layerCount: Number of routing layers
    *   - minTraceToPadEdgeClearance: Minimum trace-edge clearance to pads/vias
+   *   - minTraceToHoleEdgeClearance: Minimum trace-edge clearance to non-plated holes
    *   - minBoardEdgeClearance: Minimum trace-edge clearance to the board outline
    *   - otherHdRoutes: Immutable routed traces to avoid while simplifying
    *   - netByConnectionName: Explicit net metadata for synthetic route names
@@ -115,6 +117,7 @@ export class TraceSimplificationSolver extends BaseSolver {
       readonly defaultViaDiameter: number
       readonly layerCount: number
       readonly minTraceToPadEdgeClearance?: number
+      readonly minTraceToHoleEdgeClearance?: number
       readonly minBoardEdgeClearance?: number
       readonly otherHdRoutes?: ReadonlyArray<HighDensityRoute>
       readonly netByConnectionName?: ReadonlyMap<string, string>
@@ -133,7 +136,7 @@ export class TraceSimplificationSolver extends BaseSolver {
     this.simplificationConfig = {
       ...simplificationConfig,
       obstacles: createObjectsWithZLayers(
-        simplificationConfig.obstacles,
+        getTraceSimplificationObstacles(simplificationConfig),
         simplificationConfig.layerCount,
       ),
     }
