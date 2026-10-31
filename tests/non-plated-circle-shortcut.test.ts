@@ -5,7 +5,7 @@ import { TraceSimplificationSolver } from "../lib/solvers/TraceSimplificationSol
 import type { Obstacle } from "../lib/types"
 import type { HighDensityIntraNodeRoute } from "../lib/types/high-density-types"
 
-test("a safe diagonal shortcut clears the circular hole rather than its bounding box", (): void => {
+test("shortcut clearance uses the circular hole outline", (): void => {
   const hole: Obstacle = {
     type: "rect",
     shape: "circle",
