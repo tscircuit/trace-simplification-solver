@@ -112,15 +112,29 @@ const getRouteSegmentKeys = (route: HighDensityRoute): ReadonlySet<string> => {
 const removeConsecutiveDuplicatePoints = (
   points: RoutePoint[],
 ): RoutePoint[] => {
-  return points.filter((point, index) => {
-    const previousPoint = points[index - 1]
-    return (
-      !previousPoint ||
-      point.x !== previousPoint.x ||
-      point.y !== previousPoint.y ||
-      point.z !== previousPoint.z
-    )
-  })
+  const deduplicated: RoutePoint[] = []
+  for (const point of points) {
+    const previous = deduplicated.at(-1)
+    if (
+      !previous ||
+      point.x !== previous.x ||
+      point.y !== previous.y ||
+      point.z !== previous.z
+    ) {
+      deduplicated.push({ ...point })
+      continue
+    }
+    // Keep the original point's terminal identity. Outgoing edge metadata,
+    // however, belongs to the last point in a run of zero-length segments.
+    delete previous.toNextSegmentType
+    delete previous.toNextSegmentCircuitJsonMetadata
+    if (point.toNextSegmentType)
+      previous.toNextSegmentType = point.toNextSegmentType
+    if (point.toNextSegmentCircuitJsonMetadata)
+      previous.toNextSegmentCircuitJsonMetadata =
+        point.toNextSegmentCircuitJsonMetadata
+  }
+  return deduplicated
 }
 
 const recomputeVias = (
