@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test"
+import { ObstacleSpatialHashIndex } from "../lib/data-structures/ObstacleTree"
 import { getVectorLength } from "../lib/utils/getVectorLength"
+import { getUniqueValidZLayersFromLayerNames } from "../lib/utils/mapLayerNameToZ"
 
 test("vector length uses repeatable arithmetic without overflowing or underflowing", () => {
   expect(getVectorLength(-9.643875714569969, -9.643875714569969)).toBe(
@@ -20,4 +22,31 @@ test("vector length uses repeatable arithmetic without overflowing or underflowi
     Number.POSITIVE_INFINITY,
   )
   expect(getVectorLength(Number.NaN, 1)).toBeNaN()
+})
+
+test("NativeObstacleTree indexes sub-cell obstacles crossing cell boundaries and supports dynamic insert", () => {
+  const index = new ObstacleSpatialHashIndex("native", [])
+  const boundaryObstacle = {
+    type: "rect" as const,
+    layers: ["top"],
+    center: { x: 0.4, y: 0.4 },
+    width: 0.1,
+    height: 0.1,
+    connectedTo: ["obs1"],
+  }
+  index.insert(boundaryObstacle)
+  const hits = index.search({
+    minX: 0.42,
+    minY: 0.42,
+    maxX: 0.48,
+    maxY: 0.48,
+  })
+  expect(hits).toHaveLength(1)
+  expect(hits[0]?.connectedTo).toEqual(["obs1"])
+  expect(
+    getUniqueValidZLayersFromLayerNames(
+      ["top", "layer1", "inner1", "inner3", "bottom"],
+      4,
+    ),
+  ).toEqual([0, 1, 3])
 })

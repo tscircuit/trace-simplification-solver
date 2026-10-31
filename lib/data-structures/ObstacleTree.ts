@@ -32,9 +32,9 @@ export class ObstacleSpatialHashIndex {
     } else {
       // fallback to native spatial-hash
       this.idx = new (class implements ISpatialIndex<Obstacle> {
-        private shi = new NativeObstacleTree(obstacles)
+        private shi = new NativeObstacleTree([])
         insert(item: Obstacle): void {
-          /* no-op */
+          this.shi.insertObstacle(item)
         }
         search(
           minX: number,
@@ -49,7 +49,7 @@ export class ObstacleSpatialHashIndex {
           return this.shi.getNodesInArea(centerX, centerY, width, height)
         }
         clear(): void {
-          /* no-op */
+          this.shi.clear()
         }
       })()
     }
@@ -98,36 +98,42 @@ export class ObstacleSpatialHashIndex {
 export class NativeObstacleTree {
   buckets: Map<BucketCoordinate, [Obstacle, number][]>
   CELL_SIZE = 0.4
+  obstacles: Obstacle[] = []
 
-  constructor(public obstacles: Obstacle[]) {
-    // console.log(
-    //   `[ObstacleSHI] Initializing with ${obstacles.length} obstacles. CELL_SIZE: ${this.CELL_SIZE}`,
-    // )
+  constructor(obstacles: Obstacle[]) {
     this.buckets = new Map()
-    let bucketEntriesCount = 0
-    // for (const obstacle of obstacles) {
-    for (let i = 0; i < obstacles.length; i++) {
-      const obstacle = obstacles[i]
-      const nodeMinX = obstacle.center.x - obstacle.width / 2
-      const nodeMinY = obstacle.center.y - obstacle.height / 2
-      const nodeMaxX = obstacle.center.x + obstacle.width / 2
-      const nodeMaxY = obstacle.center.y + obstacle.height / 2
-      for (let x = nodeMinX; x <= nodeMaxX; x += this.CELL_SIZE) {
-        for (let y = nodeMinY; y <= nodeMaxY; y += this.CELL_SIZE) {
-          const bucketKey = this.getBucketKey(x, y)
-          const bucket = this.buckets.get(bucketKey)
-          if (!bucket) {
-            this.buckets.set(bucketKey, [[obstacle, i]])
-          } else {
-            bucket.push([obstacle, i])
-            bucketEntriesCount++
-          }
+    for (const obstacle of obstacles) {
+      this.insertObstacle(obstacle)
+    }
+  }
+
+  insertObstacle(obstacle: Obstacle) {
+    const index = this.obstacles.length
+    this.obstacles.push(obstacle)
+    const nodeMinX = obstacle.center.x - obstacle.width / 2
+    const nodeMinY = obstacle.center.y - obstacle.height / 2
+    const nodeMaxX = obstacle.center.x + obstacle.width / 2
+    const nodeMaxY = obstacle.center.y + obstacle.height / 2
+    const minIndexX = Math.floor(nodeMinX / this.CELL_SIZE)
+    const maxIndexX = Math.floor(nodeMaxX / this.CELL_SIZE)
+    const minIndexY = Math.floor(nodeMinY / this.CELL_SIZE)
+    const maxIndexY = Math.floor(nodeMaxY / this.CELL_SIZE)
+    for (let ix = minIndexX; ix <= maxIndexX; ix++) {
+      for (let iy = minIndexY; iy <= maxIndexY; iy++) {
+        const bucketKey = `${ix}x${iy}` as BucketCoordinate
+        const bucket = this.buckets.get(bucketKey)
+        if (!bucket) {
+          this.buckets.set(bucketKey, [[obstacle, index]])
+        } else {
+          bucket.push([obstacle, index])
         }
       }
     }
-    // console.log(
-    //   `[ObstacleSHI] Initialization complete. Populated ${this.buckets.size} buckets with ${bucketEntriesCount} total entries.`,
-    // )
+  }
+
+  clear() {
+    this.obstacles = []
+    this.buckets.clear()
   }
 
   getBucketKey(x: number, y: number): BucketCoordinate {
@@ -146,9 +152,13 @@ export class NativeObstacleTree {
     const minY = centerY - height / 2
     const maxX = centerX + width / 2
     const maxY = centerY + height / 2
-    for (let x = minX; x <= maxX; x += this.CELL_SIZE) {
-      for (let y = minY; y <= maxY; y += this.CELL_SIZE) {
-        const bucketKey = this.getBucketKey(x, y)
+    const minIndexX = Math.floor(minX / this.CELL_SIZE)
+    const maxIndexX = Math.floor(maxX / this.CELL_SIZE)
+    const minIndexY = Math.floor(minY / this.CELL_SIZE)
+    const maxIndexY = Math.floor(maxY / this.CELL_SIZE)
+    for (let ix = minIndexX; ix <= maxIndexX; ix++) {
+      for (let iy = minIndexY; iy <= maxIndexY; iy++) {
+        const bucketKey = `${ix}x${iy}` as BucketCoordinate
         const bucket = this.buckets.get(bucketKey) || []
         for (const obstacleWithIndex of bucket) {
           if (alreadyAddedObstacles.has(obstacleWithIndex[1])) continue
