@@ -53,7 +53,8 @@ test("simplification honors the requested trace-to-hole clearance", (): void => 
             x: 0,
             y: 0,
             radius: 0.5,
-          }) - output.traceThickness / 2,
+          }) -
+          output.traceThickness / 2,
       ),
     )
     expect(gap).toBeGreaterThanOrEqual(holeClearance - 1e-9)

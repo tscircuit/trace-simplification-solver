@@ -12,14 +12,18 @@ export const getTraceSimplificationObstacles = ({
 }): Obstacle[] => {
   // Path sampling uses 0.1 mm; via shortcuts may use a smaller pad margin.
   const margin = Math.min(0.1, minTraceToPadEdgeClearance ?? 0.15)
-  const expansion = Math.max(0, (minTraceToHoleEdgeClearance ?? margin) - margin)
-  return obstacles.map((obstacle): Obstacle =>
-    obstacle.isNonPlatedHole && expansion > 0
-      ? {
-          ...obstacle,
-          width: obstacle.width + 2 * expansion,
-          height: obstacle.height + 2 * expansion,
-        }
-      : obstacle,
+  const expansion = Math.max(
+    0,
+    (minTraceToHoleEdgeClearance ?? margin) - margin,
+  )
+  return obstacles.map(
+    (obstacle): Obstacle =>
+      obstacle.isNonPlatedHole && expansion > 0
+        ? {
+            ...obstacle,
+            width: obstacle.width + 2 * expansion,
+            height: obstacle.height + 2 * expansion,
+          }
+        : obstacle,
   )
 }
