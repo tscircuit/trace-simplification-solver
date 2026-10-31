@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test"
+import { getCrossingTransitionComparisonSvg } from "tests/fixtures/get-crossing-transition-comparison-svg"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import { CrossingViaReductionSolver } from "lib/solvers/CrossingViaReductionSolver/crossing-via-reduction-solver"
 import { createCrossingViaReductionRoutes } from "tests/fixtures/crossing-via-reduction-routes"
 
-test("duplicate route points preserve the outgoing through-obstacle segment", () => {
+test("duplicate route points preserve the outgoing through-obstacle segment", async () => {
   const routes = createCrossingViaReductionRoutes()
   // A zero-length wire ends where the marked plated-obstacle transition starts.
   // These points coincide, but only the latter owns the outgoing segment metadata.
@@ -29,7 +30,11 @@ test("duplicate route points preserve the outgoing through-obstacle segment", ()
     }),
     layerCount: 2,
   })
+  const beforeGraphics = solver.visualize()
   solver.solve()
+  await expect(
+    getCrossingTransitionComparisonSvg(solver, beforeGraphics, before),
+  ).toMatchSvgSnapshot(import.meta.path)
   const [detour, transition] = solver.getReducedHdRoutes()
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)

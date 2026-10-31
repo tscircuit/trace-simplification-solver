@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test"
+import { getCrossingTransitionComparisonSvg } from "tests/fixtures/get-crossing-transition-comparison-svg"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import { CrossingViaReductionSolver } from "lib/solvers/CrossingViaReductionSolver/crossing-via-reduction-solver"
 import { createCrossingViaReductionRoutes } from "tests/fixtures/crossing-via-reduction-routes"
 
-test("deduplication keeps a terminal but clears stale zero-length segment metadata", () => {
+test("deduplication keeps a terminal but clears stale zero-length segment metadata", async () => {
   const routes = createCrossingViaReductionRoutes()
   const first = routes[1]!.route[0]!
   routes[1]!.route.splice(1, 0, { x: first.x, y: first.y, z: first.z })
@@ -20,7 +21,12 @@ test("deduplication keeps a terminal but clears stale zero-length segment metada
       transition_net: ["transition"],
     }),
   })
+  const beforeGraphics = solver.visualize()
+  const beforeRoutes = structuredClone(routes)
   solver.solve()
+  await expect(
+    getCrossingTransitionComparisonSvg(solver, beforeGraphics, beforeRoutes),
+  ).toMatchSvgSnapshot(import.meta.path)
   const [detour, transition] = solver.getReducedHdRoutes()
   expect(solver.solved).toBe(true)
   expect(detour!.vias).toHaveLength(0)
