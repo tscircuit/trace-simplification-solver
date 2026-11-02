@@ -374,6 +374,13 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
     // Compute path segments and total length
     this.computePathSegments()
+    // Budget minimum-distance advances, step-size retries, and layer changes.
+    this.MAX_ITERATIONS = Math.max(
+      this.MAX_ITERATIONS,
+      6 *
+        (Math.ceil(this.totalPathLength / this.minStepSize) +
+          this.pathSegments.length),
+    )
   }
 
   // Compute the path segments and their distances
