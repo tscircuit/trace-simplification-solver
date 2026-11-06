@@ -100,6 +100,7 @@ interface StoredVia {
 export class HighDensityRouteSpatialIndex {
   private segmentBuckets: Map<BucketCoordinate, StoredSegment[]>
   private viaBuckets: Map<BucketCoordinate, StoredVia[]> // New: Store vias
+  private bucketKeysByRoute?: Map<HighDensityRoute, Set<BucketCoordinate>>
   private CELL_SIZE: number
   private maximumCopperRadius = 0
 
@@ -411,33 +412,47 @@ export class HighDensityRouteSpatialIndex {
     return results
   }
 
-  /**
-   * Removes a route from the spatial index by connection name.
-   * @param connectionName The connection name of the route to remove.
-   */
-  removeRoute(connectionName: string): void {
-    // Remove segments belonging to this route
-    for (const [bucketKey, segments] of this.segmentBuckets) {
-      const filtered = segments.filter(
-        (seg) => seg.parentRoute.connectionName !== connectionName,
-      )
-      if (filtered.length === 0) {
-        this.segmentBuckets.delete(bucketKey)
-      } else if (filtered.length !== segments.length) {
-        this.segmentBuckets.set(bucketKey, filtered)
+  private collectRouteBucketKeys(): Map<
+    HighDensityRoute,
+    Set<BucketCoordinate>
+  > {
+    const bucketKeysByRoute = new Map<HighDensityRoute, Set<BucketCoordinate>>()
+    for (const buckets of [this.segmentBuckets, this.viaBuckets]) {
+      for (const [bucketKey, entries] of buckets) {
+        for (const { parentRoute } of entries) {
+          const keys = bucketKeysByRoute.get(parentRoute)
+          if (keys) keys.add(bucketKey)
+          else bucketKeysByRoute.set(parentRoute, new Set([bucketKey]))
+        }
       }
     }
+    return bucketKeysByRoute
+  }
 
-    // Remove vias belonging to this route
-    for (const [bucketKey, vias] of this.viaBuckets) {
-      const filtered = vias.filter(
-        (via) => via.parentRoute.connectionName !== connectionName,
-      )
-      if (filtered.length === 0) {
-        this.viaBuckets.delete(bucketKey)
-      } else if (filtered.length !== vias.length) {
-        this.viaBuckets.set(bucketKey, filtered)
+  /** Removes all indexed copper with the given connection name. */
+  removeRoute(connectionName: string): void {
+    // Build the reverse lookup only for indexes used for route replacement.
+    const bucketKeysByRoute = (this.bucketKeysByRoute ??=
+      this.collectRouteBucketKeys())
+    for (const [route, bucketKeys] of bucketKeysByRoute) {
+      if (route.connectionName !== connectionName) continue
+      for (const key of bucketKeys) {
+        const segments = this.segmentBuckets.get(key)
+        if (segments) {
+          const remaining = segments.filter(
+            (segment) => segment.parentRoute !== route,
+          )
+          if (remaining.length > 0) this.segmentBuckets.set(key, remaining)
+          else this.segmentBuckets.delete(key)
+        }
+        const vias = this.viaBuckets.get(key)
+        if (vias) {
+          const remaining = vias.filter((via) => via.parentRoute !== route)
+          if (remaining.length > 0) this.viaBuckets.set(key, remaining)
+          else this.viaBuckets.delete(key)
+        }
       }
+      bucketKeysByRoute.delete(route)
     }
   }
 
@@ -450,6 +465,10 @@ export class HighDensityRouteSpatialIndex {
       console.warn("Skipping route with missing data:", route)
       return
     }
+    const bucketKeysByRoute = this.bucketKeysByRoute
+    const bucketKeys = bucketKeysByRoute
+      ? (bucketKeysByRoute.get(route) ?? new Set<BucketCoordinate>())
+      : undefined
     this.maximumCopperRadius = Math.max(
       this.maximumCopperRadius,
       route.traceThickness / 2,
@@ -491,6 +510,7 @@ export class HighDensityRouteSpatialIndex {
               this.segmentBuckets.set(bucketKey, bucketList)
             }
             bucketList.push(segmentInfo)
+            bucketKeys?.add(bucketKey)
           }
         }
       }
@@ -519,7 +539,11 @@ export class HighDensityRouteSpatialIndex {
           this.viaBuckets.set(bucketKey, bucketList)
         }
         bucketList.push(storedVia)
+        bucketKeys?.add(bucketKey)
       }
+    }
+    if (bucketKeysByRoute && bucketKeys?.size) {
+      bucketKeysByRoute.set(route, bucketKeys)
     }
   }
 
