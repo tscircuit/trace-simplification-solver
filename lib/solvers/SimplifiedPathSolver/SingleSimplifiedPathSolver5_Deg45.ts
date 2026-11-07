@@ -970,6 +970,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       for (let i = tailIndex; i < newTailIndex; i++) {
         if (this.inputRoute.route[i].z !== this.inputRoute.route[i + 1].z) {
           newTailIndex = i
+          // Clamp the distance even when the leaving-layer vertex is
+          // already in newRoute. Otherwise the sampler advances past the
+          // via without appending its entering-layer anchor.
+          this.tailDistanceAlongPath = this.pathSegments[i].startDistance
           break
         }
       }
