@@ -429,13 +429,28 @@ export class HighDensityRouteSpatialIndex {
     return bucketKeysByRoute
   }
 
-  /** Removes all indexed copper with the given connection name. */
-  removeRoute(connectionName: string): void {
+  /**
+   * Remove one route by identity, or all routes with the current connection name.
+   * Recorded bucket membership remains valid if the route is renamed or edited
+   * before removal. Remove and re-add a route to index changed geometry.
+   */
+  removeRoute(routeOrConnectionName: HighDensityRoute | string): void {
     // Build the reverse lookup only for indexes used for route replacement.
     const bucketKeysByRoute = (this.bucketKeysByRoute ??=
       this.collectRouteBucketKeys())
-    for (const [route, bucketKeys] of bucketKeysByRoute) {
-      if (route.connectionName !== connectionName) continue
+    const routes =
+      typeof routeOrConnectionName === "string"
+        ? bucketKeysByRoute.keys()
+        : [routeOrConnectionName]
+    for (const route of routes) {
+      if (
+        typeof routeOrConnectionName === "string" &&
+        route.connectionName !== routeOrConnectionName
+      ) {
+        continue
+      }
+      const bucketKeys = bucketKeysByRoute.get(route)
+      if (!bucketKeys) continue
       for (const key of bucketKeys) {
         const segments = this.segmentBuckets.get(key)
         if (segments) {
