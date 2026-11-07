@@ -1,0 +1,16 @@
+{
+  "board": "https://tscircuit.com/seveibar/rvboy-advance",
+  "source": "unpublished native TSX candidate, complete 224-component / 219-group electrical netlist",
+  "captureBoundary": "SingleSimplifiedPathSolver5 input during first path_simplification pass",
+  "inputSha256": "b075fc01f96a9ff88fddb3dae92cc43e271e74cfa28aa6322ed2b1fc0d494aa4",
+  "traceSimplificationRevision": "0c44e18291e856c0a4fa6669d1a5a001b7c1cd58",
+  "viewbox": {
+    "minX": -19.2,
+    "maxX": -17.8,
+    "minY": 2.5,
+    "maxY": 3.9
+  },
+  "inputRouteCount": 1,
+  "otherRouteCount": 584,
+  "obstacleCount": 1016
+}
