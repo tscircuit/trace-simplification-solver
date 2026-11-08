@@ -56,7 +56,7 @@ export class TraceSimplificationSolver extends BaseSolver {
     {
       start: HighDensityRoute["route"][number]
       end: HighDensityRoute["route"][number]
-    }
+    }[]
   >
 
   simplificationPipelineLoops = 0
@@ -146,7 +146,7 @@ export class TraceSimplificationSolver extends BaseSolver {
         {
           start: HighDensityRoute["route"][number]
           end: HighDensityRoute["route"][number]
-        }
+        }[]
       >()
       for (const route of simplificationConfig.hdRoutes) {
         const start = route.route[0]
@@ -156,15 +156,10 @@ export class TraceSimplificationSolver extends BaseSolver {
             `TraceSimplificationSolver cannot preserve endpoints for empty route "${route.connectionName}"`,
           )
         }
-        if (endpointByConnectionName.has(route.connectionName)) {
-          throw new Error(
-            `TraceSimplificationSolver cannot preserve endpoints for duplicate route "${route.connectionName}"`,
-          )
-        }
-        endpointByConnectionName.set(route.connectionName, {
-          start: { ...start },
-          end: { ...end },
-        })
+        const fragments =
+          endpointByConnectionName.get(route.connectionName) ?? []
+        fragments.push({ start: { ...start }, end: { ...end } })
+        endpointByConnectionName.set(route.connectionName, fragments)
       }
       this.preservedRouteEndpoints = endpointByConnectionName
     }
@@ -173,13 +168,24 @@ export class TraceSimplificationSolver extends BaseSolver {
 
   private validatePreservedRouteEndpoints(routes: HighDensityRoute[]): void {
     if (!this.preservedRouteEndpoints) return
-    if (routes.length !== this.preservedRouteEndpoints.size) {
+    const expectedRouteCount = [
+      ...this.preservedRouteEndpoints.values(),
+    ].reduce((count, fragments) => count + fragments.length, 0)
+    if (routes.length !== expectedRouteCount) {
       throw new Error(
-        `TraceSimplificationSolver changed the preserved route set (expected ${this.preservedRouteEndpoints.size}, got ${routes.length})`,
+        `TraceSimplificationSolver changed the preserved route set (expected ${expectedRouteCount}, got ${routes.length})`,
       )
     }
 
-    const outputConnectionNames = new Set<string>()
+    // Repair can split one electrical connection into several route fragments.
+    // Match a multiset of endpoint pairs so reordering is allowed, while losing
+    // a fragment or substituting another fragment's endpoints still fails.
+    const remaining = new Map(
+      [...this.preservedRouteEndpoints].map(([name, fragments]) => [
+        name,
+        [...fragments],
+      ]),
+    )
     const pointsMatch = (
       left: HighDensityRoute["route"][number],
       right: HighDensityRoute["route"][number],
@@ -189,26 +195,23 @@ export class TraceSimplificationSolver extends BaseSolver {
       left.z === right.z
 
     for (const route of routes) {
-      if (outputConnectionNames.has(route.connectionName)) {
-        throw new Error(
-          `TraceSimplificationSolver produced duplicate preserved route "${route.connectionName}"`,
-        )
-      }
-      outputConnectionNames.add(route.connectionName)
-      const expected = this.preservedRouteEndpoints.get(route.connectionName)
+      const expected = remaining.get(route.connectionName)
       const start = route.route[0]
       const end = route.route.at(-1)
-      if (
-        !expected ||
-        !start ||
-        !end ||
-        !pointsMatch(start, expected.start) ||
-        !pointsMatch(end, expected.end)
-      ) {
+      const matchIndex =
+        start && end
+          ? expected?.findIndex(
+              (fragment) =>
+                pointsMatch(start, fragment.start) &&
+                pointsMatch(end, fragment.end),
+            )
+          : undefined
+      if (matchIndex === undefined || matchIndex < 0) {
         throw new Error(
           `TraceSimplificationSolver changed a preserved endpoint for route "${route.connectionName}"`,
         )
       }
+      expected!.splice(matchIndex, 1)
     }
   }
 
