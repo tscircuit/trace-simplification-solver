@@ -3,6 +3,7 @@ import type { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import type { HighDensityRouteSpatialIndex } from "../../data-structures/HighDensityRouteSpatialIndex"
 import type { ObstacleSpatialHashIndex } from "../../data-structures/ObstacleTree"
 import type { HighDensityRoute } from "../../types/high-density-types"
+import { getMaximumViaDiameter } from "../../utils/getMaximumViaDiameter"
 
 type RoutePoint = HighDensityRoute["route"][number]
 
@@ -101,7 +102,7 @@ export const createObstacleDetourPathValidator = ({
     currentTraceThickness / 2 +
     Math.max(
       (candidate.traceThickness ?? defaultTraceThickness) / 2,
-      candidate.viaDiameter / 2,
+      getMaximumViaDiameter(candidate) / 2,
     ) +
     traceMargin
 
