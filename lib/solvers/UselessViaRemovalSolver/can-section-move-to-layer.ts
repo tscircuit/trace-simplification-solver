@@ -91,6 +91,8 @@ export const canSectionMoveToLayer = ({
     )
 
     for (const obstacle of obstacles) {
+      if (obstacle.__zLayers && !obstacle.__zLayers.includes(targetZ)) continue
+
       // Same-net pads and copper should not block via removal collision checks.
       const obstacleIsSameNet = routeIds.some((routeId) =>
         obstacle.connectedTo.some(
