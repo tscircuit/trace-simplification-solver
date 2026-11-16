@@ -33,7 +33,13 @@ export type HighDensityIntraNodeRoute = {
     toNextSegmentType?: "through_obstacle"
     toNextSegmentCircuitJsonMetadata?: CircuitJsonMetadata
   }>
-  vias: Array<{ x: number; y: number }>
+  vias: Array<{
+    x: number
+    y: number
+    /** Overrides the route's default via diameter. */
+    diameter?: number
+    holeDiameter?: number
+  }>
   jumpers?: Jumper[]
   regionId?: string
 }

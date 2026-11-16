@@ -1,3 +1,4 @@
+import { getMaximumViaDiameter } from "../utils/getMaximumViaDiameter"
 import { doSegmentsIntersect, Point3 } from "@tscircuit/math-utils" // Assuming this is available and correct
 import type { Jumper } from "../types/high-density-types"
 
@@ -19,7 +20,7 @@ export type HighDensityIntraNodeRoute = {
   traceThickness: number
   viaDiameter: number // Now used in conflict calculation
   route: Array<{ x: number; y: number; z: number; insideJumperPad?: boolean }>
-  vias: Array<{ x: number; y: number }> // Will be indexed
+  vias: Array<{ x: number; y: number; diameter?: number }> // Will be indexed
   jumpers?: Jumper[]
 }
 export type HighDensityRoute = HighDensityIntraNodeRoute
@@ -89,6 +90,7 @@ interface StoredSegment {
 }
 
 interface StoredVia {
+  diameter: number
   viaId: string // Unique identifier for the via within its route
   x: number
   y: number
@@ -119,7 +121,7 @@ export class HighDensityRouteSpatialIndex {
       this.maximumCopperRadius = Math.max(
         this.maximumCopperRadius,
         route.traceThickness / 2,
-        route.viaDiameter / 2,
+        getMaximumViaDiameter(route) / 2,
       )
 
       // --- Index Segments ---
@@ -168,6 +170,7 @@ export class HighDensityRouteSpatialIndex {
 
           const storedVia: StoredVia = {
             viaId: `${route.connectionName}-via-${i}`,
+            diameter: via.diameter ?? route.viaDiameter,
             x: via.x,
             y: via.y,
             parentRoute: route,
@@ -246,7 +249,7 @@ export class HighDensityRouteSpatialIndex {
             const route = item.parentRoute
             if (ignoreRoute(route) || checkedVias.has(item.viaId)) continue
             checkedVias.add(item.viaId)
-            const separation = margin + route.viaDiameter / 2
+            const separation = margin + item.diameter / 2
             const distanceSq = pointToSegmentDistanceSq(
               item,
               segmentStart,
@@ -374,7 +377,7 @@ export class HighDensityRouteSpatialIndex {
             const viaPoint: Point2D = { x: viaInfo.x, y: viaInfo.y }
 
             // Required separation distance from query centerline to via edge
-            const requiredSeparation = margin + route.viaDiameter / 2
+            const requiredSeparation = margin + viaInfo.diameter / 2
             const requiredSeparationSq = requiredSeparation * requiredSeparation
 
             // Calculate distance from via center to the query segment
@@ -472,7 +475,7 @@ export class HighDensityRouteSpatialIndex {
     this.maximumCopperRadius = Math.max(
       this.maximumCopperRadius,
       route.traceThickness / 2,
-      route.viaDiameter / 2,
+      getMaximumViaDiameter(route) / 2,
     )
 
     const epsilon = 1e-9
@@ -524,6 +527,7 @@ export class HighDensityRouteSpatialIndex {
 
         const storedVia: StoredVia = {
           viaId: `${route.connectionName}-via-${i}`,
+          diameter: via.diameter ?? route.viaDiameter,
           x: via.x,
           y: via.y,
           parentRoute: route,
@@ -636,7 +640,7 @@ export class HighDensityRouteSpatialIndex {
             const route = viaInfo.parentRoute
             const viaPoint: Point2D = { x: viaInfo.x, y: viaInfo.y }
 
-            const requiredSeparation = margin + route.viaDiameter / 2
+            const requiredSeparation = margin + viaInfo.diameter / 2
             const requiredSeparationSq = requiredSeparation * requiredSeparation
 
             const distSq = computeDistSq(point, viaPoint) // Point-to-point distance

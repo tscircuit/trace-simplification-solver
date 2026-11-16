@@ -1,3 +1,4 @@
+import { getViaAtPointOrThrow } from "../../utils/getViaAtPointOrThrow"
 import type { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import { GraphicsObject } from "graphics-debug"
 import { HighDensityRouteSpatialIndex } from "../../data-structures/HighDensityRouteSpatialIndex"
@@ -906,8 +907,12 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     const route = this.routeSections.flatMap((section) => section.points)
     const vias: HighDensityRoute["vias"] = []
     for (let i = 0; i < route.length - 1; i++) {
-      if (route[i].z !== route[i + 1].z) {
+      if (
+        route[i].z !== route[i + 1].z &&
+        route[i].toNextSegmentType !== "through_obstacle"
+      ) {
         vias.push({
+          ...getViaAtPointOrThrow(this.unsimplifiedRoute.vias, route[i]),
           x: route[i].x,
           y: route[i].y,
         })
