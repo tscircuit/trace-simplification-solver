@@ -1,7 +1,11 @@
 export const mapLayerNameToZ = (layerName: string, layerCount: number) => {
   if (layerName === "top") return 0
   if (layerName === "bottom") return layerCount - 1
-  return parseInt(layerName.slice(5))
+  if (!layerName.startsWith("inner")) return Number.NaN
+  const parsed = Number(layerName.slice(5))
+  return Number.isInteger(parsed) && parsed > 0 && parsed < layerCount - 1
+    ? parsed
+    : Number.NaN
 }
 
 export function getUniqueValidZLayers(
