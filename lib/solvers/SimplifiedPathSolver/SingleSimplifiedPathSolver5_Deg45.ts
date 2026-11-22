@@ -472,7 +472,13 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         continue
       }
 
-      const distToObstacle = segmentToBoxMinDistance(start, end, obstacle)
+      const distToObstacle =
+        obstacle.isNonPlatedHole &&
+        obstacle.shape === "circle" &&
+        obstacle.width === obstacle.height
+          ? pointToSegmentDistance(obstacle.center, start, end) -
+            obstacle.width / 2
+          : segmentToBoxMinDistance(start, end, obstacle)
 
       // Check if the line might intersect with this obstacle's borders
       if (
