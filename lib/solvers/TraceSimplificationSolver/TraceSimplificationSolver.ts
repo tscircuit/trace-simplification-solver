@@ -115,6 +115,7 @@ export class TraceSimplificationSolver extends BaseSolver {
       readonly defaultViaDiameter: number
       readonly layerCount: number
       readonly minTraceToPadEdgeClearance?: number
+      readonly minTraceToHoleEdgeClearance?: number
       readonly minBoardEdgeClearance?: number
       readonly otherHdRoutes?: ReadonlyArray<HighDensityRoute>
       readonly netByConnectionName?: ReadonlyMap<string, string>
@@ -432,6 +433,10 @@ export class TraceSimplificationSolver extends BaseSolver {
             outline: this.simplificationConfig.outline
               ? [...this.simplificationConfig.outline]
               : undefined,
+            minTraceToPadEdgeClearance:
+              this.simplificationConfig.minTraceToPadEdgeClearance,
+            minTraceToHoleEdgeClearance:
+              this.simplificationConfig.minTraceToHoleEdgeClearance,
             minBoardEdgeClearance:
               this.simplificationConfig.minBoardEdgeClearance,
             defaultViaDiameter: this.simplificationConfig.defaultViaDiameter,

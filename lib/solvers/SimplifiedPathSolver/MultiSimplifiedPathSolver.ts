@@ -5,7 +5,6 @@ import { HighDensityIntraNodeRoute } from "../../types/high-density-types"
 import { combineVisualizations } from "../../utils/combineVisualizations"
 import { createObjectsWithZLayers } from "../../utils/createObjectsWithZLayers"
 import { BaseSolver } from "../BaseSolver"
-import { SingleSimplifiedPathSolver } from "./SingleSimplifiedPathSolver"
 import { SingleSimplifiedPathSolver5 } from "./SingleSimplifiedPathSolver5_Deg45"
 import { VertexShortcutPathSolver } from "./VertexShortcutPathSolver"
 import { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
@@ -19,7 +18,7 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
 
   currentUnsimplifiedHdRouteIndex = 0
 
-  activeSubSolver: SingleSimplifiedPathSolver | null = null
+  activeSubSolver: SingleSimplifiedPathSolver5 | null = null
 
   unsimplifiedHdRoutes: HighDensityIntraNodeRoute[]
   otherHdRoutes: ReadonlyArray<HighDensityIntraNodeRoute>
@@ -27,10 +26,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
   connMap: ConnectivityMap
   colorMap: Record<string, string>
   outline?: Array<{ x: number; y: number }>
+  minTraceToPadEdgeClearance?: number
+  minTraceToHoleEdgeClearance?: number
   minBoardEdgeClearance: number
   defaultViaDiameter: number
-  useTraceWidthAwareClearance: boolean
-  enableVertexShortcuts: boolean
+  useTraceWidthAwareClearance?: boolean
+  enableVertexShortcuts?: boolean
   private readonly geometryIndex: PathSimplificationGeometryIndex
 
   constructor(params: {
@@ -41,6 +42,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     connMap?: ConnectivityMap
     colorMap?: Record<string, string>
     outline?: Array<{ x: number; y: number }>
+    minTraceToPadEdgeClearance?: number
+    minTraceToHoleEdgeClearance?: number
     minBoardEdgeClearance?: number
     defaultViaDiameter?: number
     useTraceWidthAwareClearance?: boolean
@@ -65,11 +68,12 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
     this.connMap = params.connMap || new ConnectivityMap({})
     this.colorMap = params.colorMap || {}
     this.outline = params.outline
+    this.minTraceToPadEdgeClearance = params.minTraceToPadEdgeClearance
+    this.minTraceToHoleEdgeClearance = params.minTraceToHoleEdgeClearance
     this.minBoardEdgeClearance = params.minBoardEdgeClearance ?? 0.2
     this.defaultViaDiameter = params.defaultViaDiameter ?? 0.3
-    this.useTraceWidthAwareClearance =
-      params.useTraceWidthAwareClearance ?? false
-    this.enableVertexShortcuts = params.enableVertexShortcuts ?? false
+    this.useTraceWidthAwareClearance = params.useTraceWidthAwareClearance
+    this.enableVertexShortcuts = params.enableVertexShortcuts
     this.geometryIndex = new PathSimplificationGeometryIndex(
       this.unsimplifiedHdRoutes,
       this.otherHdRoutes,
@@ -99,6 +103,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
         connMap: this.connMap,
         colorMap: this.colorMap,
         outline: this.outline,
+        minTraceToPadEdgeClearance: this.minTraceToPadEdgeClearance,
+        minTraceToHoleEdgeClearance: this.minTraceToHoleEdgeClearance,
         minBoardEdgeClearance: this.minBoardEdgeClearance,
         useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
         geometryQuery: {
@@ -117,9 +123,14 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
       return
     }
     if (this.activeSubSolver.solved) {
+      // Retry retained bends when the board clearance ruled out a shortcut
+      // that the sampler would normally have accepted.
       if (
-        this.enableVertexShortcuts &&
-        !(this.activeSubSolver instanceof VertexShortcutPathSolver)
+        !(this.activeSubSolver instanceof VertexShortcutPathSolver) &&
+        (this.enableVertexShortcuts ??
+          (this.minTraceToPadEdgeClearance !== undefined &&
+            this.activeSubSolver.keptOriginalSegments &&
+            this.activeSubSolver.blockedByBoardClearance))
       ) {
         this.activeSubSolver = new VertexShortcutPathSolver({
           inputRoute: this.activeSubSolver.simplifiedRoute,
@@ -128,6 +139,8 @@ export class MultiSimplifiedPathSolver extends BaseSolver {
           connMap: this.connMap,
           colorMap: this.colorMap,
           outline: this.outline,
+          minTraceToPadEdgeClearance: this.minTraceToPadEdgeClearance,
+          minTraceToHoleEdgeClearance: this.minTraceToHoleEdgeClearance,
           minBoardEdgeClearance: this.minBoardEdgeClearance,
           useTraceWidthAwareClearance: this.useTraceWidthAwareClearance,
           geometryQuery: {

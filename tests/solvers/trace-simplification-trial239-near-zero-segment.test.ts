@@ -116,6 +116,20 @@ test("does not create a near-zero segment from the exact Trial239 stitched route
   ).filter((segment) => segment.length < MIN_SAME_LAYER_SEGMENT_LENGTH)
   expect(nearZeroSegments).toEqual([])
 
+  // The near-zero check covers one net. Guard simplification across all
+  // 437 routes as well: a blocked local shortcut used to leave 1,943
+  // off-angle segments after all four passes.
+  const segments = solver.simplifiedHdRoutes.flatMap(
+    getPositiveSameLayerSegments,
+  )
+  const offAngle = segments.filter(({ start, end }) => {
+    const dx = Math.abs(end.x - start.x)
+    const dy = Math.abs(end.y - start.y)
+    return Math.min(dx, dy, Math.abs(dx - dy)) > 1e-6
+  })
+  expect(solver.simplifiedHdRoutes).toHaveLength(config.hdRoutes.length)
+  expect(offAngle.length).toBeLessThan(1200)
+
   const graphics = solver.visualize()
   for (const line of graphics.lines ?? []) delete line.label
   for (const point of graphics.points ?? []) delete point.label

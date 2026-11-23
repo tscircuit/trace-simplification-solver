@@ -86,13 +86,13 @@ The exported `TraceSimplificationSolverOptions` type describes the constructor o
 | --- | --- |
 | `otherHdRoutes` | Immutable routed copper to avoid. These routes are neither modified nor included in the output. |
 | `outline` | Board boundary as an array of `{ x, y }` points. |
-| `minTraceToPadEdgeClearance` | Obstacle margin for via-removal shortcuts and crossing reduction; defaults to `0.15`. |
+| `minTraceToPadEdgeClearance` | Minimum copper-edge spacing for path shortcuts. Via removal and crossing reduction use it as their obstacle margin (default `0.15`). |
 | `minBoardEdgeClearance` | Trace-edge clearance to the outline during path simplification; defaults to `0.2`. |
 | `enableCrossingViaReduction` | Enable crossing layer swaps and local obstacle-detour shortcuts on later via-removal passes; off by default. |
 | `preserveRouteEndpoints` | Preserve each route's start/end coordinates and layers; off by default. Requires nonempty routes with unique connection names. |
 | `netByConnectionName` | `ReadonlyMap<string, string>` providing explicit net identities for via merging, useful for synthetic connection names. |
-| `useTraceWidthAwareClearance` | Use actual segment widths for path-simplification clearance checks; off by default. |
-| `enableVertexShortcuts` | Run vertex cleanup after path sampling; off by default. |
+| `useTraceWidthAwareClearance` | Use actual copper widths for path-simplification clearance checks. Defaults to true when the caller supplies a copper edge clearance. |
+| `enableVertexShortcuts` | Search existing vertices for shorter legal paths after sampling. By default, retry retained bends when the board clearance blocked a shortcut that the sampler’s normal spacing would allow. |
 | `terminalLayerIndicesByPcbPortId` | Map PCB-port IDs to sets of physical layer indices on which the terminal can accept an endpoint without a via. |
 
 To change the number of pipeline passes, set `solver.MAX_SIMPLIFICATION_PIPELINE_LOOPS` before solving. This is separate from the step limit, `solver.MAX_ITERATIONS`.
