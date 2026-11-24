@@ -597,6 +597,7 @@ export class HighDensityRouteSpatialIndex {
             }
 
             const route = segmentInfo.parentRoute
+            if (ignoreRoute?.(route)) continue
             // Convert segment points to Point2D for distance calculation
             const p1: Point2D = {
               x: segmentInfo.segment[0].x,
@@ -634,6 +635,7 @@ export class HighDensityRouteSpatialIndex {
             checkedVias.add(viaInfo.viaId)
 
             const route = viaInfo.parentRoute
+            if (ignoreRoute?.(route)) continue
             const viaPoint: Point2D = { x: viaInfo.x, y: viaInfo.y }
 
             const requiredSeparation = margin + route.viaDiameter / 2
