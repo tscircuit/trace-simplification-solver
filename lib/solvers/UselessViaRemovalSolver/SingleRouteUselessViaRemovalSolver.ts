@@ -56,6 +56,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
   routeSections: Array<RouteSection>
 
   currentSectionIndex: number
+  private readonly connectedRoutes: Set<HighDensityRoute>
   private readonly sameNetRouteCache = new WeakMap<HighDensityRoute, boolean>()
   private detourContexts = new WeakMap<
     RoutePoint,
@@ -111,6 +112,64 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     this.PRESERVE_ROUTE_ENDPOINTS = params.preserveRouteEndpoints ?? false
 
     this.routeSections = breakRouteIntoSections(this.unsimplifiedRoute)
+    this.connectedRoutes = this.hdRouteSHI.getRoutesTouchingRoute(
+      this.unsimplifiedRoute,
+      (route): boolean =>
+        route === this.unsimplifiedRoute || !this.isRouteOnSameNet(route),
+    )
+  }
+
+  private canSectionMoveToLayer(
+    currentSection: RouteSection,
+    targetZ: number,
+  ): boolean {
+    if (
+      !canSectionMoveToLayer({
+        currentSection,
+        targetZ,
+        route: this.unsimplifiedRoute,
+        hdRouteSHI: this.hdRouteSHI,
+        obstacleSHI: this.obstacleSHI,
+        connMap: this.connMap,
+        defaultTraceThickness: this.TRACE_THICKNESS,
+        obstacleMargin: this.OBSTACLE_MARGIN,
+      })
+    )
+      return false
+
+    return this.preservesConnections(
+      this.getSectionsWithLayer(currentSection, targetZ),
+    )
+  }
+
+  private getSectionsWithLayer(
+    currentSection: RouteSection,
+    targetZ: number,
+  ): RouteSection[] {
+    return this.routeSections.map(
+      (section): RouteSection =>
+        section === currentSection
+          ? {
+              ...section,
+              z: targetZ,
+              points: section.points.map(
+                (point): RoutePoint => ({ ...point, z: targetZ }),
+              ),
+            }
+          : section,
+    )
+  }
+
+  private preservesConnections(sections: RouteSection[]): boolean {
+    const connectedRoutes = this.hdRouteSHI.getRoutesTouchingRoute(
+      this.getOptimizedHdRoute(sections),
+      (route): boolean =>
+        route === this.unsimplifiedRoute || !this.connectedRoutes.has(route),
+    )
+    for (const route of this.connectedRoutes) {
+      if (!connectedRoutes.has(route)) return false
+    }
+    return true
   }
 
   private getPathLength(points: RoutePoint[]): number {
@@ -415,13 +474,18 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
           const pathIsClear = validatePath(path, 0)
           if (!pathIsClear || this.shortcutCrossesOutline(path)) continue
 
+          const shortcut: ViaPairShortcut = {
+            path,
+            previousPointIndex,
+            nextPointIndex,
+            savedLength,
+          }
+          if (
+            !this.preservesConnections(this.getSectionsWithShortcut(shortcut))
+          )
+            continue
           if (!bestShortcut || savedLength > bestShortcut.savedLength) {
-            bestShortcut = {
-              path,
-              previousPointIndex,
-              nextPointIndex,
-              savedLength,
-            }
+            bestShortcut = shortcut
           }
         }
       }
@@ -544,6 +608,8 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
       // Most candidates collide. Only run the comparatively expensive polygon
       // boundary scan for candidates that pass the spatial-index checks.
       if (this.shortcutCrossesOutline(path)) continue
+      if (!this.preservesConnections(this.getSectionsWithShortcut(shortcut)))
+        continue
 
       this.obstacleDetourCandidatesValidated += candidatesValidated
       this.stats.obstacleDetourCandidatesValidated =
@@ -592,7 +658,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     )
   }
 
-  private applyGeometryShortcut(shortcut: ViaPairShortcut): void {
+  private getSectionsWithShortcut(shortcut: ViaPairShortcut): RouteSection[] {
     const previousSection = this.routeSections[this.currentSectionIndex - 1]
     const nextSection = this.routeSections[this.currentSectionIndex + 1]
     const combinedPoints = [
@@ -609,12 +675,20 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
       )
     })
 
-    this.routeSections.splice(this.currentSectionIndex - 1, 3, {
-      startIndex: previousSection.startIndex,
-      endIndex: nextSection.endIndex,
-      z: previousSection.z,
-      points: combinedPoints,
-    })
+    return [
+      ...this.routeSections.slice(0, this.currentSectionIndex - 1),
+      {
+        startIndex: previousSection.startIndex,
+        endIndex: nextSection.endIndex,
+        z: previousSection.z,
+        points: combinedPoints,
+      },
+      ...this.routeSections.slice(this.currentSectionIndex + 2),
+    ]
+  }
+
+  private applyGeometryShortcut(shortcut: ViaPairShortcut): void {
+    this.routeSections = this.getSectionsWithShortcut(shortcut)
     this.geometryShortcutsApplied++
     this.stats.geometryShortcutsApplied = this.geometryShortcutsApplied
     this.stats.viasRemovedByGeometryShortcuts =
@@ -663,7 +737,10 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
           defaultTraceThickness: this.TRACE_THICKNESS,
           obstacleMargin: this.GEOMETRY_SHORTCUT_OBSTACLE_MARGIN,
           traceMargin: this.GEOMETRY_SHORTCUT_TRACE_MARGIN,
-        })
+        }) &&
+        this.preservesConnections(
+          this.getSectionsWithLayer(currentSection, candidate.targetZ),
+        )
       ) {
         return candidate
       }
@@ -753,16 +830,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
         })
         if (
           endpointSupportsLayer &&
-          canSectionMoveToLayer({
-            currentSection: firstSection,
-            targetZ,
-            route: this.unsimplifiedRoute,
-            hdRouteSHI: this.hdRouteSHI,
-            obstacleSHI: this.obstacleSHI,
-            connMap: this.connMap,
-            defaultTraceThickness: this.TRACE_THICKNESS,
-            obstacleMargin: this.OBSTACLE_MARGIN,
-          })
+          this.canSectionMoveToLayer(firstSection, targetZ)
         ) {
           firstSection.z = targetZ
           firstSection.points = firstSection.points.map((p) => ({
@@ -803,16 +871,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
           })
           if (
             endpointSupportsLayer &&
-            canSectionMoveToLayer({
-              currentSection: lastSection,
-              targetZ,
-              route: this.unsimplifiedRoute,
-              hdRouteSHI: this.hdRouteSHI,
-              obstacleSHI: this.obstacleSHI,
-              connMap: this.connMap,
-              defaultTraceThickness: this.TRACE_THICKNESS,
-              obstacleMargin: this.OBSTACLE_MARGIN,
-            })
+            this.canSectionMoveToLayer(lastSection, targetZ)
           ) {
             lastSection.z = targetZ
             lastSection.points = lastSection.points.map((p) => ({
@@ -848,18 +907,7 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
 
     const targetZ = prevSection.z
 
-    if (
-      canSectionMoveToLayer({
-        currentSection,
-        targetZ,
-        route: this.unsimplifiedRoute,
-        hdRouteSHI: this.hdRouteSHI,
-        obstacleSHI: this.obstacleSHI,
-        connMap: this.connMap,
-        defaultTraceThickness: this.TRACE_THICKNESS,
-        obstacleMargin: this.OBSTACLE_MARGIN,
-      })
-    ) {
+    if (this.canSectionMoveToLayer(currentSection, targetZ)) {
       currentSection.z = targetZ
       currentSection.points = currentSection.points.map((p) => ({
         ...p,
@@ -900,10 +948,12 @@ export class SingleRouteUselessViaRemovalSolver extends BaseSolver {
     }
   }
 
-  getOptimizedHdRoute(): HighDensityRoute {
+  getOptimizedHdRoute(
+    sections: RouteSection[] = this.routeSections,
+  ): HighDensityRoute {
     // TODO reconstruct the route from segments, we will need to recompute the
     // vias
-    const route = this.routeSections.flatMap((section) => section.points)
+    const route = sections.flatMap((section) => section.points)
     const vias: HighDensityRoute["vias"] = []
     for (let i = 0; i < route.length - 1; i++) {
       if (route[i].z !== route[i + 1].z) {
