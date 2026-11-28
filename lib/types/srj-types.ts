@@ -17,6 +17,7 @@ export interface Obstacle {
   componentId?: string
   /** True when this obstacle replaces one completed fanout source footprint. */
   isFanoutSourceKeepout?: boolean
+  isNonPlatedHole?: boolean
   shape?: "circle"
   /**
    * Optional Circuit JSON provenance carried through SRJ.
