@@ -124,29 +124,14 @@
       },
       "width": 0.35,
       "height": 0.35,
-      "layers": [
-        "top",
-        "inner1",
-        "inner2",
-        "bottom"
-      ],
+      "layers": ["top", "inner1", "inner2", "bottom"],
       "connectedTo": [
         "source_net_5",
         "pcb_port_465",
         "dogbone_pcb_port_465_exit"
       ],
-      "zLayers": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "__zLayers": [
-        0,
-        1,
-        2,
-        3
-      ]
+      "zLayers": [0, 1, 2, 3],
+      "__zLayers": [0, 1, 2, 3]
     },
     {
       "obstacleId": "dogbone_pcb_port_466_barrel_1_0",
@@ -158,29 +143,14 @@
       },
       "width": 0.35,
       "height": 0.35,
-      "layers": [
-        "top",
-        "inner1",
-        "inner2",
-        "bottom"
-      ],
+      "layers": ["top", "inner1", "inner2", "bottom"],
       "connectedTo": [
         "source_net_10",
         "pcb_port_466",
         "dogbone_pcb_port_466_exit"
       ],
-      "zLayers": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "__zLayers": [
-        0,
-        1,
-        2,
-        3
-      ]
+      "zLayers": [0, 1, 2, 3],
+      "__zLayers": [0, 1, 2, 3]
     }
   ]
 }
