@@ -75,7 +75,7 @@ export class UselessViaRemovalSolver extends BaseSolver {
       this.activeSubSolver.step()
       if (this.activeSubSolver.solved) {
         const optimizedRoute = this.activeSubSolver.getOptimizedHdRoute()
-        this.hdRouteSHI!.removeRoute(optimizedRoute.connectionName)
+        this.hdRouteSHI!.removeRoute(this.activeSubSolver.unsimplifiedRoute)
         this.hdRouteSHI!.addRoute(optimizedRoute)
         this.optimizedHdRoutes.push(optimizedRoute)
         this.activeSubSolver = null

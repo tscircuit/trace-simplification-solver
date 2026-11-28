@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import { ConnectivityMap } from "circuit-json-to-connectivity-map"
 import { getSvgFromGraphicsObject } from "graphics-debug"
 import { SingleSimplifiedPathSolver5 } from "lib/solvers/SimplifiedPathSolver/SingleSimplifiedPathSolver5_Deg45"
+import { minimumDistanceBetweenSegments } from "lib/utils/minimumDistanceBetweenSegments"
 import type { HighDensityRoute } from "lib/types/high-density-types"
 
 test("path cleanup keeps a same-net branch connected", (): void => {
@@ -36,6 +37,34 @@ test("path cleanup keeps a same-net branch connected", (): void => {
     connMap: new ConnectivityMap({ power: ["power_trunk", "power_branch"] }),
   })
   solver.solve()
+  const simplified = solver.simplifiedRoute
+  const branchDistance = Math.min(
+    ...simplified.route
+      .slice(1)
+      .map((point, index) =>
+        minimumDistanceBetweenSegments(
+          simplified.route[index]!,
+          point,
+          branch.route[0]!,
+          branch.route[1]!,
+        ),
+      ),
+  )
+  expect(branchDistance).toBeLessThan(
+    (trunk.traceThickness + branch.traceThickness) / 2,
+  )
+  const length = simplified.route
+    .slice(1)
+    .reduce(
+      (sum, point, index) =>
+        sum +
+        Math.hypot(
+          point.x - simplified.route[index]!.x,
+          point.y - simplified.route[index]!.y,
+        ),
+      0,
+    )
+  expect(length).toBeLessThan(9)
   const graphics = solver.visualize()
   graphics.texts = [
     {

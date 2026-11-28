@@ -57,6 +57,7 @@ test("detour context is reused within a section and cleared after copper changes
       layer: number,
     ) => { traceCorners: Array<{ x: number; y: number }> }
   }
+  queries = 0
   const start = solver.routeSections[0].points[0]
   const end = solver.routeSections[2].points[0]
   const before = methods.getObstacleDetourContext(start, end, 0)

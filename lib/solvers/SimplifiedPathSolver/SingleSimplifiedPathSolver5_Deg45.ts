@@ -20,6 +20,7 @@ import {
 } from "@tscircuit/math-utils"
 import { doesSegmentCrossPolygonBoundary } from "../../utils/polygonContainment"
 import { JUMPER_DIMENSIONS } from "../../utils/jumperSizes"
+import { HighDensityRouteSpatialIndex } from "../../data-structures/HighDensityRouteSpatialIndex"
 import type { PathSimplificationGeometryIndex } from "../../data-structures/PathSimplificationGeometryIndex"
 
 interface Point {
@@ -38,6 +39,8 @@ interface PathSegment {
 
 export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   private pathSegments: PathSegment[] = []
+  private connectionIndex?: HighDensityRouteSpatialIndex
+  private connectedRoutes = new Set<HighDensityIntraNodeRoute>()
   private totalPathLength: number = 0
   private headDistanceAlongPath: number = 0
   private tailDistanceAlongPath: number = 0
@@ -70,6 +73,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
   segmentTree!: SegmentTree
 
   OBSTACLE_MARGIN = 0.1
+  private readonly holeCenterlineClearance: number
   TRACE_THICKNESS = 0.15
   private useTraceWidthAwareClearance = false
   private clearanceTraceThickness = this.TRACE_THICKNESS
@@ -97,6 +101,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
   constructor(
     params: ConstructorParameters<typeof SingleSimplifiedPathSolver>[0] & {
+      minTraceToHoleEdgeClearance?: number
       useTraceWidthAwareClearance?: boolean
       geometryQuery?: {
         index: PathSimplificationGeometryIndex
@@ -112,6 +117,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     this.clearanceTraceThickness = this.useTraceWidthAwareClearance
       ? this.inputRoute.traceThickness
       : this.TRACE_THICKNESS
+
+    this.holeCenterlineClearance =
+      params.minTraceToHoleEdgeClearance === undefined
+        ? this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+        : params.minTraceToHoleEdgeClearance +
+          this.inputRoute.traceThickness / 2
 
     // Handle empty or single-point routes
     if (this.inputRoute.route.length <= 1) {
@@ -155,8 +166,12 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       height: bounds.maxY - bounds.minY,
     }
 
-    const obstacleMargin =
+    const copperObstacleMargin =
       this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+    const obstacleMargin = Math.max(
+      this.holeCenterlineClearance,
+      copperObstacleMargin,
+    )
     const candidateObstacles = params.geometryQuery
       ? params.geometryQuery.index.getCandidateObstacles(
           {
@@ -175,6 +190,13 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
           params.geometryQuery.routeIndex,
         )
       : this.otherHdRoutes
+
+    this.connectionIndex = new HighDensityRouteSpatialIndex(
+      candidateRoutes.filter((route): boolean => this.isSameNetRoute(route)),
+    )
+    this.connectedRoutes = this.connectionIndex.getRoutesTouchingRoute(
+      this.inputRoute,
+    )
 
     this.filteredObstacles = candidateObstacles
       .filter(
@@ -196,7 +218,9 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
 
         if (
           distance <
-          this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+          (obstacle.isNonPlatedHole
+            ? this.holeCenterlineClearance
+            : copperObstacleMargin)
         ) {
           return true
         }
@@ -472,12 +496,20 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         continue
       }
 
-      const distToObstacle = segmentToBoxMinDistance(start, end, obstacle)
+      const distToObstacle =
+        obstacle.isNonPlatedHole &&
+        obstacle.shape === "circle" &&
+        obstacle.width === obstacle.height
+          ? pointToSegmentDistance(obstacle.center, start, end) -
+            obstacle.width / 2
+          : segmentToBoxMinDistance(start, end, obstacle)
 
       // Check if the line might intersect with this obstacle's borders
       if (
         distToObstacle <
-        this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2
+        (obstacle.isNonPlatedHole
+          ? this.holeCenterlineClearance
+          : this.OBSTACLE_MARGIN + this.clearanceTraceThickness / 2)
       ) {
         return false
       }
@@ -579,11 +611,34 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     return true
   }
 
+  private preservesConnections(path: Point[], endDistance: number): boolean {
+    if (this.connectedRoutes.size === 0) return true
+    const endIndex = this.getNearestIndexForDistance(endDistance)
+    const candidateRoute: HighDensityIntraNodeRoute = {
+      ...this.inputRoute,
+      route: [
+        ...this.newRoute,
+        ...path,
+        ...this.inputRoute.route.slice(endIndex + 1),
+      ],
+    }
+    const contacts =
+      this.connectionIndex!.getRoutesTouchingRoute(candidateRoute)
+    for (const route of this.connectedRoutes) {
+      if (!contacts.has(route)) return false
+    }
+    return true
+  }
+
   // Find a valid 45-degree path between two points
-  private find45DegreePath(start: Point, end: Point): Point[] | null {
+  private find45DegreePath(
+    start: Point,
+    end: Point,
+    endDistance = this.headDistanceAlongPath,
+  ): Point[] | null {
     // Skip if points are the same
     if (this.arePointsEqual(start, end)) {
-      return [start]
+      return this.preservesConnections([start], endDistance) ? [start] : null
     }
 
     // Skip 45-degree check if we're on different layers
@@ -603,7 +658,10 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
       const fullPath = path.map((p) => ({ x: p.x, y: p.y, z: start.z }))
 
       // Check if this path is valid
-      if (this.isValidPath(fullPath)) {
+      if (
+        this.isValidPath(fullPath) &&
+        this.preservesConnections(fullPath, endDistance)
+      ) {
         return fullPath
       }
     }
@@ -877,6 +935,7 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         const pathToVia = this.find45DegreePath(
           lastPointInNewRoute,
           viaPointOnLeavingLayer,
+          layerChangeAtDistance,
         )
 
         if (pathToVia) {
@@ -889,16 +948,19 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         }
       }
 
-      // 3. Add the via itself.
-      this.newVias.push(viaLocation)
-
-      // 4. Add the point *after* the layer change, starting the segment on the *new* layer.
-      // Ensure this point also uses the precise via location and the *new* Z coordinate.
-      this.newRoute.push({
-        x: viaLocation.x,
-        y: viaLocation.y,
-        z: pointAfterChange.z, // Use the Z of the layer we are entering
-      })
+      // Keep an existing barrel transition distinct from a new drill.
+      const pointBeforeChange = this.inputRoute.route[indexAfterLayerChange - 1]
+      if (pointBeforeChange.toNextSegmentType) {
+        Object.assign(this.newRoute[this.newRoute.length - 1], {
+          toNextSegmentType: pointBeforeChange.toNextSegmentType,
+          toNextSegmentCircuitJsonMetadata:
+            pointBeforeChange.toNextSegmentCircuitJsonMetadata,
+        })
+      }
+      if (pointBeforeChange.toNextSegmentType !== "through_obstacle") {
+        this.newVias.push(viaLocation)
+      }
+      this.newRoute.push({ ...pointAfterChange })
 
       // 5. Reset state for the next segment.
       this.currentStepSize = this.maxStepSize
@@ -961,7 +1023,8 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
     }
 
     if (!path45 && !this.lastValidPath) {
-      const oldTailPoint = this.getPointAtDistance(this.tailDistanceAlongPath)
+      const oldTailDistance = this.tailDistanceAlongPath
+      const oldTailPoint = this.getPointAtDistance(oldTailDistance)
 
       // Move tail and head forward by stepSize
       this.tailDistanceAlongPath += this.minStepSize
@@ -991,7 +1054,11 @@ export class SingleSimplifiedPathSolver5 extends SingleSimplifiedPathSolver {
         !this.arePointsEqual(oldTailPoint, newTailPoint) &&
         !this.arePointsEqual(newTailPoint, lastRoutePoint)
       ) {
-        this.newRoute.push(newTailPoint)
+        if (this.isValidPathSegment(this.newRoute.at(-1)!, newTailPoint)) {
+          this.newRoute.push(newTailPoint)
+        } else {
+          this.appendOriginalRouteSlice(oldTailDistance, newTailIndex)
+        }
         // Start the next validated path at the vertex appended above.
         this.tailDistanceAlongPath =
           newTailIndex === 0

@@ -1,0 +1,156 @@
+{
+  "inputRoute": {
+    "connectionName": "source_net_55_mst56",
+    "rootConnectionName": "source_net_55",
+    "traceThickness": 0.08,
+    "viaDiameter": 0.35,
+    "route": [
+      {
+        "x": 1.665,
+        "y": 15.075,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 1.8111246447423925,
+        "y": 15.075,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 1.8845119287100653,
+        "y": 15.001612716032326,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.0328980062899022,
+        "y": 14.870345729834108,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.2754156046199743,
+        "y": 14.737536802113107,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.386998171967822,
+        "y": 14.75001610286609,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.6,
+        "y": 14.845,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.68,
+        "y": 14.845,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.753,
+        "y": 14.845,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.815,
+        "y": 14.845,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.802,
+        "y": 14.9,
+        "z": 3,
+        "traceThickness": 0.08
+      },
+      {
+        "x": 2.965,
+        "y": 15.075,
+        "z": 3,
+        "traceThickness": 0.08
+      }
+    ],
+    "vias": [],
+    "jumpers": []
+  },
+  "otherHdRoutes": [
+    {
+      "connectionName": "source_net_5_fixed_10_1",
+      "rootConnectionName": "connectivity_net162",
+      "isFixed": true,
+      "preloadedTraceIndex": 10,
+      "preloadedRouteIndex": 1,
+      "preloadedRoutePositionStart": 2,
+      "preloadedRoutePositionEnd": 2,
+      "isThroughObstacle": false,
+      "traceThickness": 1e-9,
+      "viaDiameter": 0.35,
+      "route": [
+        {
+          "x": 2.315,
+          "y": 15.075,
+          "z": 0
+        },
+        {
+          "x": 2.315,
+          "y": 15.075,
+          "z": 1
+        }
+      ],
+      "vias": [
+        {
+          "x": 2.315,
+          "y": 15.075
+        }
+      ]
+    }
+  ],
+  "obstacles": [
+    {
+      "obstacleId": "dogbone_pcb_port_465_barrel_1_0",
+      "type": "rect",
+      "shape": "circle",
+      "center": {
+        "x": 2.315,
+        "y": 15.075
+      },
+      "width": 0.35,
+      "height": 0.35,
+      "layers": ["top", "inner1", "inner2", "bottom"],
+      "connectedTo": [
+        "source_net_5",
+        "pcb_port_465",
+        "dogbone_pcb_port_465_exit"
+      ],
+      "zLayers": [0, 1, 2, 3],
+      "__zLayers": [0, 1, 2, 3]
+    },
+    {
+      "obstacleId": "dogbone_pcb_port_466_barrel_1_0",
+      "type": "rect",
+      "shape": "circle",
+      "center": {
+        "x": 2.315,
+        "y": 14.425
+      },
+      "width": 0.35,
+      "height": 0.35,
+      "layers": ["top", "inner1", "inner2", "bottom"],
+      "connectedTo": [
+        "source_net_10",
+        "pcb_port_466",
+        "dogbone_pcb_port_466_exit"
+      ],
+      "zLayers": [0, 1, 2, 3],
+      "__zLayers": [0, 1, 2, 3]
+    }
+  ]
+}
